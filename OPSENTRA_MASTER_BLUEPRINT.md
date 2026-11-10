@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.0.0 (planning baseline)  
+> **Version:** 1.1.0 (planning baseline; brand approved)  
 > **Date:** 2026-11-10  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Planning and branding; **no application or AWS resources have been deployed under this plan**.  
+> **Project state:** Phase 1 — brand identity approved and published in `brand/`; **no application or AWS resources have been deployed under this plan**.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -15,7 +15,7 @@
 
 This is the **source of truth** for Opsentra's scope, design decisions, phased implementation, security constraints, acceptance criteria, cost strategy, and demonstration scenarios. Do not treat planned components as already implemented. Every phase must meet its Definition of Done before moving on. This document is intentionally more complete than the MVP; later sections mark stretch and deferred work.
 
-**Change control:** Proposed changes are documented in an Architecture Decision Record (ADR) and reflected here; the version number and change log are updated. Do not allow implementation assistants to silently alter security scope, deploy infrastructure, or commit major architectural changes without review. Branding remains **provisional until the logo/concept selection is approved**.
+**Change control:** Proposed changes are documented in an Architecture Decision Record (ADR) and reflected here; the version number and change log are updated. Do not allow implementation assistants to silently alter security scope, deploy infrastructure, or commit major architectural changes without review. Branding was **approved on 2026-11-10** (ADR-010: Continuity Shift); changes to the logo, palette or typography go through the same ADR process.
 
 **Operating principles:**
 
@@ -41,7 +41,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-007 | Terraform S3 state backend with native locking | Proposed | Requires separately bootstrapped S3 bucket, versioning, encryption. |
 | ADR-008 | Cognito JWT auth with backend-enforced roles | Proposed | Privileged API protected; public Demo has no credentials. |
 | ADR-009 | No NAT gateway, RDS, always-on container infrastructure | Default constraint | Protect $150 AWS promotional credit. |
-| ADR-010 | Branding: preliminary signal/pulse direction | Not approved | Design concepts to be reviewed before UI implementation. |
+| ADR-010 | Branding: "Continuity Shift" logo system | Agreed (2026-11-10) | Chosen from three concepts after a size/sync-icon review; kit and rules in `brand/` and `brand/BRAND_GUIDELINES.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
 
@@ -96,9 +96,11 @@ Not a replacement for AWS Console, PagerDuty, Datadog, or Systems Manager; not a
 
 **Name:** Opsentra. **Description:** Cloud Operations & Incident Response Platform. **Promise:** Make cloud infrastructure easier to observe, understand, and recover. **Tagline:** Monitor. Detect. Respond. Recover.
 
-Brand personality: calm under pressure, practical, precise, secure, technically credible. Avoid misleading glowing metrics, heavy visual effects, generic stock graphics, unrestrained neon, and overcomplicated animations. A future visual identity package should include horizontal/stacked SVG logo, app icon, favicons, monochrome variants, typography rules, spacing, and GitHub social preview. Branding approval precedes interface polish.
+Brand personality: calm under pressure, practical, precise, secure, technically credible. Avoid misleading glowing metrics, heavy visual effects, generic stock graphics, unrestrained neon, and overcomplicated animations.
 
-**Provisional tokens:** Midnight `#0B1220`, panel `#172338`, signal blue `#38BDF8`, healthy `#34D399`, warning `#FBBF24`, critical `#FB7185`, light text `#F8FAFC`. Inter/Geist for UI; IBM Plex Mono for technical codes. Confirm text contrast under WCAG 2.2 AA; never communicate status through color alone.
+**Approved identity (ADR-010):** the **Continuity Shift** symbol (one ring split on its vertical axis, halves offset ±12 on a 256 grid with overlapping end faces: an incident is a shift in a system that stays whole) with a lowercase `opsentra` wordmark in Inter SemiBold, outlined. The kit in `brand/` contains primary/light/dark/monochrome SVG lockups, symbol and small-size cut, adaptive `favicon.svg` + `favicon.ico`, web/PWA icons, brand board and GitHub social preview. `brand/BRAND_GUIDELINES.md` is the source of truth for logo usage, clear space, minimum sizes and dashboard branding.
+
+**Approved tokens:** Ops Navy `#0B1220`, Surface `#172338`, Line `#24324A`, Signal `#38BDF8` (accent on dark), Signal Deep `#0284C7` (accent/symbol on light), Signal Ink `#0369A1` (accent text on light), Cloud `#F8FAFC`, Slate `#94A3B8`. Status colours have dark-UI / light-UI pairs: healthy `#34D399` / `#047857`, warning `#FBBF24` / `#B45309`, critical `#FB7185` / `#BE123C`. Inter for UI; IBM Plex Mono for technical codes, IDs and metrics. Contrast values are documented in the brand guidelines (WCAG 2.2 AA); never communicate status through color alone, and never recolour the logo with status colours.
 
 ### 2.2 Primary navigation / IA
 
@@ -427,7 +429,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Establish final brand, repo structure, frontend foundation, navigation and typed interfaces—without AWS deployment.
 
-**Work:** select approved logo concept; export SVG/favicons/light-dark wordmark; brand guidelines and token file; setup React/Vite/TypeScript, Tailwind, shadcn/ui, routing, state/query library, lint/format, tests, responsive accessible layout; build nine page skeletons and reusable components; document API DTOs, fixtures, mode guard; empty states, auth layout, error page; establish architecture overview and design review checklist.
+**Work:** ~~select approved logo concept; export SVG/favicons/light-dark wordmark; brand guidelines~~ (done: `brand/`); token file; setup React/Vite/TypeScript, Tailwind, shadcn/ui, routing, state/query library, lint/format, tests, responsive accessible layout; build nine page skeletons and reusable components; document API DTOs, fixtures, mode guard; empty states, auth layout, error page; establish architecture overview and design review checklist.
 
 **Deliverables:** running frontend with consistent navigation and no false live data, brand kit, reusable component library, frontend build/test pipeline, project README.
 
@@ -547,6 +549,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 opsentra/
 ├── README.md
 ├── OPSENTRA_MASTER_BLUEPRINT.md
+├── brand/                       # approved logo kit and BRAND_GUIDELINES.md
 ├── LICENSE                      # only after license decision
 ├── .editorconfig
 ├── .gitignore
@@ -593,7 +596,6 @@ opsentra/
 │   ├── e2e/
 │   └── fixtures/
 ├── docs/
-│   ├── brand/
 │   ├── architecture/
 │   ├── adr/
 │   ├── api/
@@ -819,7 +821,7 @@ These links support design decisions and should be rechecked for new AWS service
 ## 16. Master checklist
 
 ### Product and design
-- [ ] Choose final logo and approve brand guide
+- [x] Choose final logo and approve brand guide
 - [ ] Define theme tokens and accessibility standards
 - [ ] Build all page routes and data contracts
 - [ ] Build transparent Demo Mode with replay/reset
@@ -862,5 +864,6 @@ These links support design decisions and should be rechecked for new AWS service
 | Version | Date | Notes |
 |---|---|---|
 | 1.0.0 | 2026-11-10 | Initial master blueprint: architecture, roles, UI, ten milestone phases, incident scenarios, data model, security, IaC, test plan, cost, interview demo. |
+| 1.1.0 | 2026-11-10 | ADR-010 agreed: Continuity Shift brand identity approved and published in `brand/`; approved colour/type tokens replace provisional ones; repo layout and checklist updated. |
 
 **Status:** APPROVED CONCEPT / IMPLEMENTATION NOT STARTED. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
