@@ -152,6 +152,7 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 ```text
 opsentra/
 ├── README.md
+├── CLAUDE.md                      # guardrails for building with Claude Code
 ├── OPSENTRA_MASTER_BLUEPRINT.md   # source of truth: scope, architecture, phases
 └── brand/                         # logo system, favicons, brand guidelines
 ```
