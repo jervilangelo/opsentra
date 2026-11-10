@@ -171,6 +171,13 @@ The **Continuity Shift** symbol is one ring split into two halves that shift apa
 - [Master blueprint](OPSENTRA_MASTER_BLUEPRINT.md): architecture, API contract, data model, threat model, test strategy, cost plan and interview storyboard
 - [Brand guidelines](brand/BRAND_GUIDELINES.md): logo usage, colour, typography and dashboard branding
 
+## Author
+
+Opsentra is created and programmed solely by **Jervil Angelo De Leon**: concept, architecture, brand, infrastructure and code.
+
+- Website: [jervilangelo.online](https://jervilangelo.online)
+- GitHub: [github.com/jervilangelo](https://github.com/jervilangelo)
+
 ## License
 
 A license has not been chosen yet. Until one is added, all rights are reserved.
@@ -178,5 +185,6 @@ A license has not been chosen yet. Until one is added, all rights are reserved.
 ---
 
 <div align="center">
-<sub>Opsentra is a portfolio project under active development. HarborPoint Solutions is fictional. No real customer data is used.</sub>
+<sub>Created and developed by <a href="https://jervilangelo.online">Jervil Angelo De Leon</a>.<br>
+Opsentra is a portfolio project under active development. HarborPoint Solutions is fictional. No real customer data is used.</sub>
 </div>
