@@ -44,3 +44,4 @@ backend.hcl
 .build/
 *.tfplan
 .lab_expires_at
+.gate_t*
