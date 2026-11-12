@@ -14,7 +14,14 @@ export function eventSummary(e: TimelineEvent): string | undefined {
   const str = (k: string) =>
     typeof d[k] === 'string' || typeof d[k] === 'number' ? String(d[k]) : undefined;
   if (str('reason')) parts.push(`Reason: ${str('reason')}`);
-  if (str('alarm')) parts.push(`${str('alarm')}: ${str('from') ?? ''} → ${str('to') ?? ''}`);
+  const alarm = str('alarm');
+  if (alarm) {
+    const from = str('from');
+    const to = str('to');
+    if (from && to) parts.push(`${alarm}: ${from} → ${to}`);
+    else if (to) parts.push(`${alarm} → ${to}`);
+    else parts.push(alarm);
+  }
   if (str('check')) parts.push(String(str('check')));
   if (str('result')) parts.push(String(str('result')));
   if (str('statusCode')) parts.push(`HTTP ${str('statusCode')}`);
@@ -32,6 +39,7 @@ export function eventSummary(e: TimelineEvent): string | undefined {
   if (str('consecutiveHealthyChecks'))
     parts.push(`${str('consecutiveHealthyChecks')} consecutive healthy checks`);
   if (d.deduplicated === true) parts.push('Repeat signal, deduplicated');
+  if (d.delayed === true) parts.push('Delivered late, older than the latest signal');
   return parts.length ? parts.join(' · ') : undefined;
 }
 

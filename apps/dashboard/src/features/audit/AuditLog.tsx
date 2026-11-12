@@ -17,6 +17,7 @@ import {
 import { QueryBoundary } from '@/features/common/QueryBoundary';
 import { eventLabel } from '@/features/incidents/event-format';
 import { useAudit } from '@/modes/data-hooks';
+import { useMode } from '@/modes/mode-store';
 import type { AuditEvent } from '@/types/domain';
 
 const OUTCOME_TONE = {
@@ -35,6 +36,7 @@ const OUTCOME_LABEL: Record<AuditEvent['outcome'], string> = {
 
 function AuditTable() {
   const audit = useAudit();
+  const mode = useMode();
   const [filter, setFilter] = useState('');
   const filterId = useId();
 
@@ -72,7 +74,9 @@ function AuditTable() {
             ) : (
               <Table label="Audit events">
                 <TableCaption>
-                  Append-only and newest first. Denied attempts are recorded too.
+                  Append-only and newest first.
+                  {/* Live records completed actions; auditing denied attempts is not built yet. */}
+                  {mode === 'demo' ? ' Denied attempts are recorded too.' : ''}
                 </TableCaption>
                 <TableHeader>
                   <TableRow>
