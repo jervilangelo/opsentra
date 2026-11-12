@@ -31,4 +31,5 @@
 1. ~~`aws login` for `ap-southeast-1`~~ done (IAM user, 2026-11-12).
 2. ~~Billing → Credits checked~~ confirmed by the owner (2026-11-12).
 3. ~~Approvals~~ given: bootstrap apply, state migration, control-plane apply, push, test users (2026-11-12).
-4. Still open: check the cost after 24 h, and decide whether to keep the control plane running (Phase 4 needs it) or destroy it.
+4. Owner decision (2026-11-12): **keep the control plane running**; nothing is to be destroyed yet. Phase 4 builds on it. A real destroy is run later, with approval, to close the teardown check.
+5. Still open: check the cost after about 24 h.
