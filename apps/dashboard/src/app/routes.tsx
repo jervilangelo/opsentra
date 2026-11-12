@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
 import { ArchitecturePage } from '@/features/architecture/ArchitecturePage';
 import { AuditSettingsPage } from '@/features/audit/AuditSettingsPage';
+import { AuthCallbackPage } from '@/features/auth/AuthCallbackPage';
 import { SignInPage } from '@/features/auth/SignInPage';
 import { NotFoundPage, RouteErrorPage } from '@/features/errors/ErrorPages';
 import { IncidentDetailPage } from '@/features/incidents/IncidentDetailPage';
@@ -33,4 +34,5 @@ export const routes: RouteObject[] = [
     ],
   },
   { path: '/sign-in', element: <SignInPage />, errorElement: <RouteErrorPage /> },
+  { path: '/auth/callback', element: <AuthCallbackPage />, errorElement: <RouteErrorPage /> },
 ];

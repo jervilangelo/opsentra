@@ -41,11 +41,16 @@ export const queryKeys = {
   labs: (mode: Mode) => [mode, 'labs'] as const,
 };
 
+/** Live data is re-read every 30 s; Demo data changes only when the engine does. */
+const LIVE_POLL_MS = 30_000;
+const poll = (mode: Mode) => (mode === 'live' ? LIVE_POLL_MS : false);
+
 export function useOverview() {
   const source = useDataSource();
   return useQuery({
     queryKey: queryKeys.overview(source.mode),
     queryFn: () => source.getOverview(),
+    refetchInterval: poll(source.mode),
   });
 }
 
@@ -54,6 +59,7 @@ export function useResources() {
   return useQuery({
     queryKey: queryKeys.resources(source.mode),
     queryFn: () => source.listResources(),
+    refetchInterval: poll(source.mode),
   });
 }
 
@@ -62,6 +68,7 @@ export function useIncidents() {
   return useQuery({
     queryKey: queryKeys.incidents(source.mode),
     queryFn: () => source.listIncidents(),
+    refetchInterval: poll(source.mode),
   });
 }
 

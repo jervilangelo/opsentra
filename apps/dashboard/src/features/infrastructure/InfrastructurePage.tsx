@@ -17,13 +17,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { QueryBoundary } from '@/features/common/QueryBoundary';
+import { isStale } from '@/domain/freshness';
 import { useResources } from '@/modes/data-hooks';
+import { useMode } from '@/modes/mode-store';
+import { StatusBadge } from '@/components/status/StatusBadge';
 import { HEALTH_DISPLAY, RESOURCE_TYPE_LABEL } from '@/types/display';
 import type { Health } from '@/types/domain';
 
 const HEALTH_FILTERS: (Health | 'all')[] = ['all', 'HEALTHY', 'DEGRADED', 'UNHEALTHY', 'UNKNOWN'];
 
 function InfrastructureContent() {
+  const mode = useMode();
   const resources = useResources();
   const [health, setHealth] = useState<Health | 'all'>('all');
   const filterId = useId();
@@ -91,7 +95,12 @@ function InfrastructureContent() {
                           <MonoId>{r.region}</MonoId>
                         </TableCell>
                         <TableCell>
-                          <Timestamp value={r.lastCheckedAt} fallback="No evidence yet" />
+                          <span className="flex items-center gap-2">
+                            <Timestamp value={r.lastCheckedAt} fallback="No evidence yet" />
+                            {mode === 'live' && isStale(r.lastCheckedAt, Date.now()) ? (
+                              <StatusBadge tone="warning">Stale</StatusBadge>
+                            ) : null}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))}

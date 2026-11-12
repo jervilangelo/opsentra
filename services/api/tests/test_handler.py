@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 import pytest
@@ -92,7 +93,7 @@ def test_errors_never_leak_internals(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*_: Any) -> Any:
         raise RuntimeError("secret detail /var/task/x.py")
 
-    monkeypatch.setitem(h.ROUTES, ("GET", "/v1/health"), boom)
+    monkeypatch.setattr(h, "ROUTES", [("GET", re.compile(r"^/v1/health$"), boom, ())])
     status, body = call(event("GET", "/v1/health"))
     assert status == 500
     assert body == {"error": {"code": "INTERNAL", "message": "Something went wrong.", "requestId": "api-req-1"}}

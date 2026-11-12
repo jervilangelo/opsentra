@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.5.0 (Phases 1–2 complete; Phase 3 infrastructure code written, not yet deployed)  
+> **Version:** 1.6.0 (Phases 1–2 complete; Phase 3 deployed; Phase 4 in progress)  
 > **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–2 complete (gates passed 2026-11-12); Phase 3 (AWS foundation) in progress; **no AWS resources have been deployed under this plan yet**.  
@@ -46,6 +46,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-012 | Demo Mode engine and Phase 2 contract additions | Agreed (2026-11-12) | `investigate`/`close` routes, remediation list, Runbook/AuditEvent/LabScenario/AnalyticsSummary DTOs, `SECURITY_GROUP` resource type, typed mutation guards. See `docs/adr/ADR-012-demo-engine-and-contract-additions.md`. |
 | ADR-013 | Easy and Advanced views | Agreed (2026-11-12) | Per-browser `view` preference, Easy by default; presentation only, same data source, guards and audit. See `docs/adr/ADR-013-easy-and-advanced-views.md`. |
 | ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
+| ADR-015 | Phase 4 lab design and Live adapter | Agreed (2026-11-12) | Own VPC, HTTP-only probe target, self-terminating lab with required expiry, self-disabling probe, registry via Terraform, PKCE sign-in, `VITE_COGNITO_DOMAIN`. See `docs/adr/ADR-015-phase4-lab-and-live-adapter.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
 
@@ -490,6 +491,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Real evidence of workload health appears in Live AWS Mode.
 
+**Status (2026-11-12):** code and tests written (ADR-015); lab deployment and the gate test pending: see `docs/phases/phase-4-checkpoint.md`.
+
 **Work:** Terraform EC2/Nginx lab; secure SSM association/profile, no SSH ingress; health-check Lambda and low-cardinality metric; CloudWatch alarm; EventBridge rule; minimal Lambda regression test resource; resource registry and inventory-sync; last-sync and stale data UX; authenticated frontend API adapter with Live badge.
 
 **Deliverables:** AWS inventory and health view, working Nginx probe and CloudWatch alarm, basic event ingestion logs.
@@ -670,6 +673,7 @@ Use `terraform fmt -check`, `terraform validate`, provider lockfile, module pinn
 | `VITE_API_BASE_URL` | Frontend build | Public URL only |
 | `VITE_COGNITO_USER_POOL_ID` | Frontend build | Public identifier; no client secret |
 | `VITE_COGNITO_CLIENT_ID` | Frontend build | Public client ID |
+| `VITE_COGNITO_DOMAIN` | Frontend build | Public Hosted UI host (v1.6.0, ADR-015) |
 | `AWS_REGION` | Backend runtime | Not a secret |
 | `INCIDENT_TABLE`, `RESOURCE_TABLE` | Backend runtime | Not a secret |
 | `LAB_ALLOWLIST` | Server-owned registry / backend config | Never user-controlled |
@@ -900,5 +904,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.3.0 | 2026-11-12 | ADR-012: interactive Demo Mode engine; §4.2 adds `investigate`, `close` and remediation-list routes; §2.4 adds `SECURITY_GROUP`, Runbook, AuditEvent, LabScenario, AnalyticsSummary, Role and typed mutation inputs. Phase 2 built (gate review pending). |
 | 1.4.0 | 2026-11-12 | ADR-013: Easy / Advanced view toggle (Easy default); presentation-only, shared command hook, plain-language Easy screens with a recovery path. |
 | 1.5.0 | 2026-11-12 | Phases 1–2 complete. ADR-006/007/008 agreed; ADR-014 records Phase 3 choices. Phase 3 Terraform, Python API, tests and CI written; not yet deployed. |
+| 1.6.0 | 2026-11-12 | ADR-015: Phase 4 lab (own VPC, self-terminating EC2/Nginx, probe + metric + alarm, EventBridge → Logs, registry), JWT read routes, Cognito PKCE Live adapter; §9.3 adds `VITE_COGNITO_DOMAIN`. |
 
 **Status:** APPROVED CONCEPT / PHASES 1–2 COMPLETE; Phase 3 in progress; no AWS resources deployed yet. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

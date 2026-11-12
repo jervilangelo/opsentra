@@ -24,6 +24,11 @@ output "table_names" {
   value = module.tables.table_names
 }
 
+output "table_arns" {
+  description = "Read by the disposable-labs root (remote state) to register lab resources."
+  value       = module.tables.table_arns
+}
+
 output "gha_plan_role_arn" {
   description = "Set as the GitHub repository secret AWS_PLAN_ROLE_ARN (it contains the account ID)."
   value       = module.ci.plan_role_arn

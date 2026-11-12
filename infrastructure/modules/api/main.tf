@@ -53,6 +53,12 @@ variable "cors_allow_origins" {
   }
 }
 
+variable "read_tables" {
+  description = "Tables the API may read (never write): logical name -> { name, arn }."
+  type        = map(object({ name = string, arn = string }))
+  default     = {}
+}
+
 variable "log_retention_days" {
   type    = number
   default = 14
@@ -70,14 +76,20 @@ variable "throttle_rate" {
 
 variable "app_version" {
   type    = string
-  default = "0.3.0"
+  default = "0.4.0"
 }
 
 locals {
   function_name = "${var.name_prefix}-api"
   routes = {
-    "GET /v1/health" = { protected = false }
-    "GET /v1/me"     = { protected = true }
+    "GET /v1/health"                          = { protected = false }
+    "GET /v1/me"                              = { protected = true }
+    "GET /v1/overview"                        = { protected = true }
+    "GET /v1/resources"                       = { protected = true }
+    "GET /v1/resources/{resourceId}"          = { protected = true }
+    "GET /v1/incidents"                       = { protected = true }
+    "GET /v1/incidents/{incidentId}"          = { protected = true }
+    "GET /v1/incidents/{incidentId}/timeline" = { protected = true }
   }
 }
 
@@ -111,15 +123,24 @@ locals {
     }]
   }
 
-  # Least privilege: write to its own log group. No DynamoDB yet (Phase 5).
+  # Least privilege: its own logs, and read-only access to named tables.
+  # No DynamoDB writes until Phase 5.
   lambda_policy = {
     Version = "2012-10-17"
-    Statement = [{
-      Sid      = "OwnLogsOnly"
-      Effect   = "Allow"
-      Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-      Resource = "${aws_cloudwatch_log_group.lambda.arn}:*"
-    }]
+    Statement = concat(
+      [{
+        Sid      = "OwnLogsOnly"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.lambda.arn}:*"
+      }],
+      length(var.read_tables) == 0 ? [] : [{
+        Sid      = "ReadTables"
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"]
+        Resource = flatten([for t in values(var.read_tables) : [t.arn, "${t.arn}/index/*"]])
+      }],
+    )
   }
 }
 
@@ -151,6 +172,9 @@ resource "aws_lambda_function" "api" {
       OPSENTRA_ENVIRONMENT = var.environment
       OPSENTRA_VERSION     = var.app_version
       LOG_LEVEL            = "INFO"
+      RESOURCES_TABLE      = try(var.read_tables["resources"].name, "")
+      INCIDENTS_TABLE      = try(var.read_tables["incidents"].name, "")
+      AUDIT_TABLE          = try(var.read_tables["audit"].name, "")
     }
   }
 

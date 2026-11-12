@@ -40,6 +40,10 @@ module "api" {
   jwt_issuer         = module.auth.issuer
   jwt_audience       = module.auth.client_ids
   cors_allow_origins = var.frontend_origins
+  read_tables = {
+    for k in ["resources", "incidents", "audit"] :
+    k => { name = module.tables.table_names[k], arn = module.tables.table_arns[k] }
+  }
 }
 
 module "ci" {

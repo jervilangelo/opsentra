@@ -1,0 +1,153 @@
+"""Read-only access to the control-plane DynamoDB tables (blueprint §4.3).
+
+The API Lambda's IAM role allows only GetItem, Query and Scan on these
+tables, so nothing here can write. Responses are shaped as the frontend DTOs
+(apps/dashboard/src/types/domain.ts). ARNs and account details are never
+returned to the client (§4.2).
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Iterator, Mapping
+from typing import Any, Protocol
+
+ACTIVE_STATES = frozenset(
+    {"OPEN", "ACKNOWLEDGED", "INVESTIGATING", "AWAITING_APPROVAL", "REMEDIATING", "VERIFYING", "ESCALATED"}
+)
+HEALTH_VALUES = ("HEALTHY", "DEGRADED", "UNHEALTHY", "UNKNOWN")
+SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+MAX_ITEMS = 500
+
+
+class Store(Protocol):
+    def scan(self, table: str) -> Iterator[dict[str, Any]]: ...
+    def get(self, table: str, key: Mapping[str, Any]) -> dict[str, Any] | None: ...
+    def query_pk(self, table: str, pk_name: str, pk_value: str) -> list[dict[str, Any]]: ...
+
+
+class DynamoStore:
+    """boto3-backed store (boto3 ships in the Lambda runtime)."""
+
+    def __init__(self) -> None:
+        import boto3
+        from boto3.dynamodb.types import TypeDeserializer
+
+        self._client = boto3.client("dynamodb")
+        self._de = TypeDeserializer()
+
+    def _plain(self, item: Mapping[str, Any]) -> dict[str, Any]:
+        out = {k: self._de.deserialize(v) for k, v in item.items()}
+        # DynamoDB numbers arrive as Decimal; the API only stores small integers.
+        return {k: int(v) if type(v).__name__ == "Decimal" else v for k, v in out.items()}
+
+    def scan(self, table: str) -> Iterator[dict[str, Any]]:
+        kwargs: dict[str, Any] = {"TableName": table}
+        seen = 0
+        while True:
+            page = self._client.scan(**kwargs)
+            for item in page.get("Items", []):
+                seen += 1
+                if seen > MAX_ITEMS:
+                    return
+                yield self._plain(item)
+            if "LastEvaluatedKey" not in page:
+                return
+            kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+    def get(self, table: str, key: Mapping[str, Any]) -> dict[str, Any] | None:
+        res = self._client.get_item(TableName=table, Key={k: {"S": str(v)} for k, v in key.items()})
+        item = res.get("Item")
+        return self._plain(item) if item else None
+
+    def query_pk(self, table: str, pk_name: str, pk_value: str) -> list[dict[str, Any]]:
+        res = self._client.query(
+            TableName=table,
+            KeyConditionExpression="#pk = :pk",
+            ExpressionAttributeNames={"#pk": pk_name},
+            ExpressionAttributeValues={":pk": {"S": pk_value}},
+            Limit=MAX_ITEMS,
+        )
+        return [self._plain(i) for i in res.get("Items", [])]
+
+
+def tables() -> dict[str, str]:
+    return {
+        "resources": os.environ.get("RESOURCES_TABLE", ""),
+        "incidents": os.environ.get("INCIDENTS_TABLE", ""),
+        "audit": os.environ.get("AUDIT_TABLE", ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Shaping (DynamoDB item -> DTO). Only listed fields leave the API.
+
+
+def _opt(src: Mapping[str, Any], out: dict[str, Any], key: str, as_key: str | None = None) -> None:
+    value = src.get(key)
+    if value not in (None, ""):
+        out[as_key or key] = value
+
+
+def resource_dto(item: Mapping[str, Any]) -> dict[str, Any]:
+    health = item.get("health")
+    out: dict[str, Any] = {
+        "id": item["resourceId"],
+        "type": item.get("type", "EC2"),
+        "environment": item.get("environment", "lab"),
+        "region": item.get("region", "ap-southeast-1"),
+        "health": health if health in HEALTH_VALUES else "UNKNOWN",
+        "evidenceAvailable": bool(item.get("lastCheckedAt")),
+    }
+    _opt(item, out, "lastCheckedAt")
+    return out
+
+
+def incident_dto(item: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "id": item["incidentId"],
+        "correlationKey": item.get("correlationKey", ""),
+        "resourceId": item.get("resourceId", ""),
+        "title": item.get("title", "Incident"),
+        "severity": item.get("severity") if item.get("severity") in SEVERITIES else "MEDIUM",
+        "state": item.get("state", "OPEN"),
+        "openedAt": item.get("openedAt", ""),
+        "version": int(item.get("version", 1)),
+    }
+    for key in ("detectedAt", "acknowledgedAt", "verifiedHealthyAt", "resolvedAt", "runbookId"):
+        _opt(item, out, key)
+    return out
+
+
+def timeline_dto(item: Mapping[str, Any], incident_id: str) -> dict[str, Any]:
+    sk = str(item.get("SK", ""))
+    out: dict[str, Any] = {
+        "id": sk,
+        "incidentId": incident_id,
+        "occurredAt": item.get("occurredAt") or sk.split("#", 1)[0],
+        "eventType": item.get("eventType", "EVENT"),
+        "actorType": "USER" if item.get("actorType") == "USER" else "SYSTEM",
+        "detail": item.get("detail") if isinstance(item.get("detail"), dict) else {},
+    }
+    _opt(item, out, "actorId")
+    return out
+
+
+def overview(resources: list[dict[str, Any]], incidents: list[dict[str, Any]]) -> dict[str, Any]:
+    health_counts = dict.fromkeys(HEALTH_VALUES, 0)
+    for r in resources:
+        health_counts[r["health"]] += 1
+    active = [i for i in incidents if i["state"] in ACTIVE_STATES]
+    by_sev = dict.fromkeys(SEVERITIES, 0)
+    for i in active:
+        by_sev[i["severity"]] += 1
+    out: dict[str, Any] = {
+        "monitoredResources": len(resources),
+        "healthCounts": health_counts,
+        "activeIncidents": len(active),
+        "activeBySeverity": by_sev,
+    }
+    checked = sorted((r["lastCheckedAt"] for r in resources if r.get("lastCheckedAt")), reverse=True)
+    if checked:
+        out["lastSyncAt"] = checked[0]
+    return out

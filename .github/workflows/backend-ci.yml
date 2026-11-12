@@ -15,21 +15,24 @@ concurrency:
   group: backend-ci-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    working-directory: services/api
-
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, health-check]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12' # matches the Lambda runtime
           cache: pip
-          cache-dependency-path: services/api/requirements-dev.txt
+          cache-dependency-path: services/${{ matrix.service }}/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check src tests
       - run: ruff format --check src tests

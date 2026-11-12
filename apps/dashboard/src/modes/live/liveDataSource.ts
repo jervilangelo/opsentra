@@ -1,48 +1,103 @@
 import type { DataSource } from '@/api/data-source';
-import { LiveUnavailableError } from '@/api/errors';
+import { ApiRequestError, LiveUnavailableError } from '@/api/errors';
+import { env, liveConfigured } from '@/config/env';
+import type { ApiErrorBody, ApiSuccess } from '@/types/api';
+import type { Role } from '@/types/domain';
+
+import { accessToken, signOut, useLiveAuth } from './auth';
 
 /**
- * Live AWS Mode data source.
+ * Live AWS Mode data source: the authenticated Opsentra API (§4.2).
  *
- * There is no backend yet, so every call fails closed with `not-configured`.
- * The authenticated API adapter arrives in Phase 3/4.
+ * Fails closed. Any missing configuration, missing sign-in, network failure or
+ * HTTP error rejects; nothing here can return synthetic data. Methods whose
+ * backend arrives in a later phase reject with `not-implemented`.
  * This module must never import Demo Mode code (enforced by ESLint).
  */
 
-const unavailable = (): Promise<never> =>
-  Promise.reject(
-    new LiveUnavailableError(
-      'not-configured',
-      'Live AWS Mode is not connected yet. The authenticated API arrives in Phase 3–4.',
-    ),
-  );
-
 export interface LiveStatus {
   available: boolean;
-  reason?: 'not-configured';
+  reason?: 'not-configured' | 'signed-out';
 }
 
-/** Live is not available until the backend exists. */
-export function getLiveStatus(): LiveStatus {
-  return { available: false, reason: 'not-configured' };
+export function getLiveStatus(signedIn = useLiveAuth.getState().signedIn): LiveStatus {
+  if (!liveConfigured()) return { available: false, reason: 'not-configured' };
+  if (!signedIn) return { available: false, reason: 'signed-out' };
+  return { available: true };
 }
+
+const later = (phase: string) => (): Promise<never> =>
+  Promise.reject(
+    new LiveUnavailableError('not-implemented', `This part of Live AWS Mode arrives in ${phase}.`),
+  );
+
+async function get<T>(path: string): Promise<ApiSuccess<T>> {
+  if (!liveConfigured() || !env.apiBaseUrl) {
+    throw new LiveUnavailableError(
+      'not-configured',
+      'Live AWS Mode is not configured for this build.',
+    );
+  }
+  const token = await accessToken();
+  if (!token) throw new LiveUnavailableError('unauthenticated', 'Sign in to use Live AWS Mode.');
+
+  let res: Response;
+  try {
+    res = await fetch(`${env.apiBaseUrl.replace(/\/$/, '')}${path}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new LiveUnavailableError('network', 'The Opsentra API could not be reached.');
+  }
+
+  if (res.status === 401) {
+    signOut(false); // expired or revoked: sign in again
+    throw new LiveUnavailableError('unauthenticated', 'Your session ended. Sign in again.');
+  }
+  const body = (await res.json().catch(() => ({}))) as ApiSuccess<T> | ApiErrorBody;
+  if (!res.ok || !('data' in body)) {
+    const err = 'error' in body ? body.error : undefined;
+    throw new ApiRequestError(
+      res.status,
+      err?.code ?? `HTTP_${res.status}`,
+      err?.message ?? 'The request failed.',
+      err?.requestId,
+    );
+  }
+  if (body.meta.dataset !== 'live') {
+    throw new ApiRequestError(500, 'DATASET_MISMATCH', 'Unexpected dataset from the Live API.');
+  }
+  return body;
+}
+
+export interface Me {
+  sub: string;
+  username?: string;
+  role: Role;
+  permittedActions: string[];
+  environment: string;
+}
+
+export const getMe = () => get<Me>('/v1/me');
+
+const enc = encodeURIComponent;
 
 export const liveDataSource: DataSource = {
   mode: 'live',
-  getOverview: unavailable,
-  listResources: unavailable,
-  listIncidents: unavailable,
-  getIncident: unavailable,
-  getTimeline: unavailable,
-  listRunbooks: unavailable,
-  listRemediations: unavailable,
-  getAnalytics: unavailable,
-  listAudit: unavailable,
-  listLabs: unavailable,
-  acknowledgeIncident: unavailable,
-  investigateIncident: unavailable,
-  requestRemediation: unavailable,
-  decideRemediation: unavailable,
-  closeIncident: unavailable,
-  startLab: unavailable,
+  getOverview: () => get('/v1/overview'),
+  listResources: () => get('/v1/resources'),
+  listIncidents: () => get('/v1/incidents'),
+  getIncident: (id) => get(`/v1/incidents/${enc(id)}`),
+  getTimeline: (id) => get(`/v1/incidents/${enc(id)}/timeline`),
+  listRunbooks: later('Phase 6'),
+  listRemediations: later('Phase 6'),
+  getAnalytics: later('Phase 8'),
+  listAudit: later('Phase 5'),
+  listLabs: later('Phase 7'),
+  acknowledgeIncident: later('Phase 5'),
+  investigateIncident: later('Phase 5'),
+  requestRemediation: later('Phase 6'),
+  decideRemediation: later('Phase 6'),
+  closeIncident: later('Phase 5'),
+  startLab: later('Phase 7'),
 };

@@ -2,10 +2,10 @@ name: terraform-check
 
 on:
   pull_request:
-    paths: ['infrastructure/**', 'services/api/src/**', '.github/workflows/terraform-check.yml']
+    paths: ['infrastructure/**', 'services/*/src/**', '.github/workflows/terraform-check.yml']
   push:
     branches: [main]
-    paths: ['infrastructure/**', 'services/api/src/**', '.github/workflows/terraform-check.yml']
+    paths: ['infrastructure/**', 'services/*/src/**', '.github/workflows/terraform-check.yml']
 
 # Static checks only: no AWS credentials, no backend, nothing created.
 permissions:
@@ -22,7 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        root: [infrastructure/bootstrap-state, infrastructure/environments/control-plane-dev]
+        root:
+          - infrastructure/bootstrap-state
+          - infrastructure/environments/control-plane-dev
+          - infrastructure/environments/disposable-labs
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

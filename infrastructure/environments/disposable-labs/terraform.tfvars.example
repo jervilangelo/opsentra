@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (gitignored). Never commit real values.
+account_id   = "000000000000"
+state_bucket = "opsentra-tfstate-000000000000-ap-southeast-1"
+
+# Pass the expiry on the command line instead, e.g. 4 hours from now:
+#   -var "lab_expires_at=$(date -u -d '+4 hours' +%Y-%m-%dT%H:%M:%SZ)"
+
+# Optional
+# instance_type = "t4g.nano"

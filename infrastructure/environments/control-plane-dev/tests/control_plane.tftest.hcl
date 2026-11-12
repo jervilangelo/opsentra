@@ -59,6 +59,10 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
+    condition     = length(module.api.route_authorization) == 8 && alltrue([for k, v in module.api.route_authorization : startswith(k, "GET ")])
+    error_message = "Phase 4 exposes exactly eight GET routes; no write routes yet."
+  }
+  assert {
     condition     = module.api.throttling.burst <= 10 && module.api.throttling.rate <= 5
     error_message = "Stage throttling must stay low for a demo account."
   }
@@ -73,9 +77,11 @@ run "lambda_role_is_least_privilege" {
 
   assert {
     condition = alltrue(flatten([
-      for s in module.api.lambda_policy.Statement : [for a in s.Action : startswith(a, "logs:")]
+      for s in module.api.lambda_policy.Statement : [
+        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"], a)
+      ]
     ]))
-    error_message = "The API Lambda may only write logs in Phase 3."
+    error_message = "The API Lambda may only write its logs and read tables (no DynamoDB writes until Phase 5)."
   }
   assert {
     condition     = !anytrue([for s in module.api.lambda_policy.Statement : s.Resource == "*"])

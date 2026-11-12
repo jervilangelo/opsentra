@@ -19,3 +19,16 @@
 | CKV_AWS_144 | S3 cross-region replication | Single region by design (§0) | Multi-region DR (roadmap) |
 | CKV_AWS_18 | S3 access logging | A small private state bucket; CloudTrail covers management events | Shared access to the bucket |
 | CKV2_AWS_62 | S3 event notifications | Not needed for a state bucket | Never |
+
+## Disposable lab (inline skips, Phase 4)
+
+These are skipped inline on the lab resources only (`#checkov:skip` with the reason), so the control plane is still checked for them.
+
+| Check | Resource | Why |
+|---|---|---|
+| CKV_AWS_260 | HTTP 80 ingress from 0.0.0.0/0 | The probe Lambda runs outside a VPC with no fixed source IP; the page is a static health marker with no data (§3.2). No SSH ingress exists. |
+| CKV_AWS_130 | Public subnet assigns public IPs | No NAT by design; the instance needs a public IP for the probe and SSM. |
+| CKV_AWS_126 | EC2 detailed monitoring | Paid; the Opsentra probe is the monitor. |
+| CKV_AWS_135 | EBS-optimized | Not supported on t4g.nano. |
+| CKV2_AWS_11 | VPC flow logs | Costs more than the disposable lab and records nothing useful. |
+| CKV_AWS_297 | Scheduler with a customer-managed key | The schedule holds no secrets; a KMS key costs more than the lab. |

@@ -13,7 +13,8 @@ export class ApiRequestError extends Error {
   }
 }
 
-export type LiveUnavailableReason = 'not-configured' | 'unauthenticated' | 'network';
+export type LiveUnavailableReason =
+  'not-configured' | 'unauthenticated' | 'network' | 'not-implemented';
 
 /**
  * Live AWS Mode cannot serve data. The UI must fail closed: show this error and

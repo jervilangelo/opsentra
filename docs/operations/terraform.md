@@ -81,7 +81,53 @@ export OPSENTRA_TEST_VIEWER_USER=opsentra-viewer OPSENTRA_TEST_VIEWER_PASSWORD=.
 .venv/Scripts/python -m pytest tests/integration -v
 ```
 
-## 5. Teardown
+## 5. Disposable lab (Phase 4)
+
+The lab needs the control plane. Every lab apply and destroy needs the owner's approval.
+
+```bash
+cd infrastructure/environments/disposable-labs
+cp backend.hcl.example backend.hcl            # same bucket, key disposable-labs/terraform.tfstate
+cp terraform.tfvars.example terraform.tfvars  # account_id, state_bucket
+terraform init -backend-config=backend.hcl
+EXP=$(date -u -d '+4 hours' +%Y-%m-%dT%H:%M:%SZ)   # at most 12 hours ahead
+terraform plan -var "lab_expires_at=$EXP" -out=lab.tfplan
+terraform apply lab.tfplan                          # owner approval required
+```
+
+Gate test (each command needs approval):
+
+```bash
+ID=$(terraform output -raw instance_id)
+MSYS_NO_PATHCONV=1 aws ssm send-command --document-name Opsentra-Lab-StopNginx --instance-ids "$ID"
+# wait about 3–4 minutes, then:
+aws cloudwatch describe-alarms --alarm-names opsentra-lab-nginx-availability --query "MetricAlarms[0].StateValue"
+MSYS_NO_PATHCONV=1 aws ssm send-command --document-name Opsentra-Lab-RestartNginx --instance-ids "$ID"
+```
+
+Tear down when done (approval required):
+
+```bash
+terraform plan -destroy -var "lab_expires_at=$EXP" -out=lab-destroy.tfplan
+terraform apply lab-destroy.tfplan
+```
+
+Then verify nothing billable is left (read-only):
+
+```bash
+aws ec2 describe-instances --filters Name=tag:opsentra:lab,Values=true Name=instance-state-name,Values=pending,running,stopping,stopped --query "length(Reservations)"
+aws ec2 describe-volumes --filters Name=tag:opsentra:lab,Values=true --query "length(Volumes)"
+aws ec2 describe-addresses --query "length(Addresses)"
+aws ec2 describe-vpcs --filters Name=tag:opsentra:lab,Values=true --query "length(Vpcs)"
+aws cloudwatch describe-alarms --alarm-name-prefix opsentra-lab- --query "length(MetricAlarms)"
+aws scheduler list-schedules --name-prefix opsentra-lab --query "length(Schedules)"
+aws logs describe-log-groups --log-group-name-prefix /aws/lambda/opsentra-lab --query "length(logGroups)"
+aws ssm list-documents --filters Key=Owner,Values=Self Key=Name,Values=Opsentra-Lab --query "length(DocumentIdentifiers)"
+```
+
+On Git Bash, set `MSYS_NO_PATHCONV=1` for AWS CLI arguments that start with `/`.
+
+## 6. Teardown (control plane)
 
 ```bash
 cd infrastructure/environments/control-plane-dev
