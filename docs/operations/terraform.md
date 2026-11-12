@@ -69,6 +69,9 @@ The password is passed on the AWS CLI command line, so it is briefly visible to 
 
 ## 4. Live checks
 
+`aws login` credentials need the `botocore[crt]` extra (in `requirements-dev.txt`). Keep the settings in the gitignored `services/api/.env.test` and load them with `set -a; . ./.env.test; set +a`.
+
+
 ```bash
 cd services/api
 export OPSENTRA_API_URL=$(terraform -chdir=../../infrastructure/environments/control-plane-dev output -raw api_url)

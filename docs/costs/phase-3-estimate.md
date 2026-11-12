@@ -25,4 +25,4 @@ Not used, by design: NAT gateway, load balancer, RDS, OpenSearch, ECS/EKS, KMS c
 
 | Date | Event | Cost observed | Notes |
 |---|---|---|---|
-| — | Not deployed yet | — | — |
+| 2026-11-12 | Bootstrap + control plane deployed; 6 live test calls | Not visible yet (billing lags about 24 h) | Check Cost Explorer by tag `opsentra:project=opsentra` |
