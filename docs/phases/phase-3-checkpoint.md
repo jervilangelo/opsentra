@@ -1,7 +1,7 @@
 # Phase 3 checkpoint: AWS infrastructure foundation
 
 - **Branch:** `feat/aws-foundation`
-- **Status:** **In progress.** Deployed to `ap-southeast-1` on 2026-11-12 (with owner approval of each apply). Remaining: test users, live role tests, cost check and the teardown test.
+- **Status:** **Passed.** Approved by the owner on 2026-11-12. Open: cost check once billing catches up, and a real control-plane destroy (deferred by the owner; the destroy plan is verified).
 
 ## Gate (blueprint §7, Phase 3)
 

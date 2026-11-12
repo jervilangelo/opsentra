@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.6.0 (Phases 1–2 complete; Phase 3 deployed; Phase 4 in progress)  
+> **Version:** 1.6.1 (Phases 1–4 complete; Phase 5 in progress)  
 > **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phases 1–2 complete (gates passed 2026-11-12); Phase 3 (AWS foundation) in progress; **no AWS resources have been deployed under this plan yet**.  
+> **Project state:** Phases 1–4 complete (gates passed 2026-11-12). The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests. Phase 5 in progress.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -479,7 +479,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Reproducible, least-privilege control plane and API.
 
-**Status (2026-11-12):** infrastructure code, API, tests and CI written and passing locally (ADR-014); deployment pending owner credentials and approval: see `docs/phases/phase-3-checkpoint.md`.
+**Status:** complete 2026-11-12 (ADR-014): see `docs/phases/phase-3-checkpoint.md`. Open: cost check, and the control-plane destroy test deferred by the owner.
 
 **Work:** bootstrap encrypted/versioned S3 state bucket; native `use_lockfile` locking; separate control-plane/lab Terraform roots; parameterized account/region; IAM GitHub OIDC trust with repo/ref scoping; Cognito user pool and roles; API Gateway HTTP API + JWT auth; Python Lambda API; DynamoDB tables; CloudWatch basic logs and retention; budget alarms and tags; secrets scanning; GitHub Actions plan validation. Set a cap on optional managed services via explicit configuration, not unbounded defaults.
 
@@ -491,7 +491,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Real evidence of workload health appears in Live AWS Mode.
 
-**Status (2026-11-12):** code and tests written (ADR-015); lab deployment and the gate test pending: see `docs/phases/phase-4-checkpoint.md`.
+**Status:** complete 2026-11-12 (ADR-015): Nginx stop raised a real alarm in 3 min 33 s; see `docs/phases/phase-4-checkpoint.md`.
 
 **Work:** Terraform EC2/Nginx lab; secure SSM association/profile, no SSH ingress; health-check Lambda and low-cardinality metric; CloudWatch alarm; EventBridge rule; minimal Lambda regression test resource; resource registry and inventory-sync; last-sync and stale data UX; authenticated frontend API adapter with Live badge.
 
@@ -860,21 +860,21 @@ These links support design decisions and should be rechecked for new AWS service
 - [x] Define theme tokens and accessibility standards (`apps/dashboard/src/styles/tokens.css`, `docs/phases/phase-1-design-review.md`)
 - [x] Build all page routes and data contracts (Phase 1)
 - [x] Build transparent Demo Mode with replay/reset (Phase 2)
-- [ ] Build clear Live AWS Mode identity and failure states
+- [x] Build clear Live AWS Mode identity and failure states (Phase 4)
 
 ### Infrastructure and security
-- [ ] Confirm AWS credit expiration and billing plan
-- [ ] Configure budget alerts and tagged resource lifecycle
-- [ ] Bootstrap encrypted/versioned Terraform state S3 bucket
-- [ ] Use S3 native Terraform state locking
-- [ ] Configure restricted GitHub Actions OIDC trust
-- [ ] Deploy Cognito + HTTP API + Lambda + DynamoDB
-- [ ] Validate least-privilege Viewer/Operator/Admin roles
-- [ ] Create disposable SSM-managed EC2/Nginx lab
+- [x] Confirm AWS credit expiration and billing plan (owner, 2026-11-12)
+- [x] Configure budget alerts and tagged resource lifecycle (account budgets already alert on a shared account; `opsentra:*` tags and lab expiry, ADR-014/015)
+- [x] Bootstrap encrypted/versioned Terraform state S3 bucket
+- [x] Use S3 native Terraform state locking
+- [x] Configure restricted GitHub Actions OIDC trust (read-only plan role)
+- [x] Deploy Cognito + HTTP API + Lambda + DynamoDB
+- [x] Validate least-privilege Viewer/Operator/Admin roles (live tests)
+- [x] Create disposable SSM-managed EC2/Nginx lab
 
 ### Incident engineering
-- [ ] Health probe + custom metric + CloudWatch alarm
-- [ ] EventBridge routing and ingestion
+- [x] Health probe + custom metric + CloudWatch alarm
+- [ ] EventBridge routing and ingestion (routing done in Phase 4; ingestion is Phase 5)
 - [ ] Idempotent active incident correlation
 - [ ] Incident lifecycle, timelines and audit trail
 - [ ] Email notifications with suppression
@@ -905,5 +905,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.4.0 | 2026-11-12 | ADR-013: Easy / Advanced view toggle (Easy default); presentation-only, shared command hook, plain-language Easy screens with a recovery path. |
 | 1.5.0 | 2026-11-12 | Phases 1–2 complete. ADR-006/007/008 agreed; ADR-014 records Phase 3 choices. Phase 3 Terraform, Python API, tests and CI written; not yet deployed. |
 | 1.6.0 | 2026-11-12 | ADR-015: Phase 4 lab (own VPC, self-terminating EC2/Nginx, probe + metric + alarm, EventBridge → Logs, registry), JWT read routes, Cognito PKCE Live adapter; §9.3 adds `VITE_COGNITO_DOMAIN`. |
+| 1.6.1 | 2026-11-12 | Phases 3 and 4 gates passed and approved by the owner; §16 checklist updated with verified items only. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–2 COMPLETE; Phase 3 in progress; no AWS resources deployed yet. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–4 COMPLETE; Phase 5 in progress; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

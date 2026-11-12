@@ -1,7 +1,7 @@
 # Phase 4 checkpoint: Real AWS monitoring and inventory
 
 - **Branch:** `feat/live-monitoring`
-- **Status:** **All gate items pass (2026-11-12); awaiting the owner's gate review.** Lab destroyed with owner approval. Open: cost check once billing catches up (about 24 h).
+- **Status:** **Passed.** Approved by the owner on 2026-11-12. Lab destroyed and verified. Open: cost check once billing catches up (about 24 h).
 
 ## Gate (blueprint §7, Phase 4)
 
