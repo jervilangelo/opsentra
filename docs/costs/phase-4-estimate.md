@@ -19,4 +19,4 @@ Prices from the AWS Pricing API for `ap-southeast-1`, read on 2026-11-12. These 
 
 | Date | Event | Cost observed | Notes |
 |---|---|---|---|
-| — | Not deployed yet | — | — |
+| 2026-11-12 | Lab up about 06:00–06:50 UTC (one instance replacement), gate test, destroyed | Estimate about $0.01; billing lags about 24 h | Check Cost Explorer by tag `opsentra:project=opsentra` |

@@ -1,7 +1,7 @@
 # Phase 4 checkpoint: Real AWS monitoring and inventory
 
 - **Branch:** `feat/live-monitoring`
-- **Status:** **Gate test passed (2026-11-12).** The control-plane update and lab deployment were applied with owner approval. Remaining: lab teardown (approval needed) and a cost check.
+- **Status:** **All gate items pass (2026-11-12); awaiting the owner's gate review.** Lab destroyed with owner approval. Open: cost check once billing catches up (about 24 h).
 
 ## Gate (blueprint §7, Phase 4)
 
@@ -10,7 +10,7 @@
 | Stopping Nginx leads to a real health alarm in AWS | `Opsentra-Lab-StopNginx` sent 06:30:51 UTC (SSM `Success`); probes failed (connection refused); alarm **OK → ALARM at 06:34:24** (detection **3 min 33 s**); EventBridge logged the state change to `/aws/events/opsentra-lab-alarms`. Recovery: `Opsentra-Lab-RestartNginx` 06:35:12; probe HEALTHY 06:37:18; alarm **ALARM → OK at 06:37:24** (2 min 12 s), also logged | **Pass** |
 | The UI shows actual resource and health data | Hosted UI sign-in (PKCE) as the viewer test user, then Live Infrastructure/Overview/Incidents (screenshots below, Live banner verified, 0 demo artefacts). During the outage the Live API returned EC2 `UNHEALTHY`, overview `UNHEALTHY: 1` | **Pass** |
 | Metrics and alarm state are not hardcoded | `NginxAvailability` datapoints from the probe (0 during the outage, 1 after); registry health written by the probe; alarm history and EventBridge events from AWS | **Pass** |
-| The lab can be destroyed | Destroy procedure and verification commands (runbook §5) | **Pending** |
+| The lab can be destroyed | `terraform destroy` removed all 36 lab resources (2026-11-12). Read-only checks after: 0 running instances, 0 lab volumes, 0 EIPs, 0 lab VPCs and security groups, 0 lab alarms, schedules, rules, Lambdas, log groups, SSM documents and IAM roles, 0 registry items. The tag API still listed 8 entries; both instances were `terminated` and the volumes and groups no longer exist (index lag). Control plane unaffected (`/v1/health` 200) | **Pass** |
 
 ## Local checks (2026-11-12)
 
