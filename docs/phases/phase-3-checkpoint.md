@@ -1,13 +1,13 @@
 # Phase 3 checkpoint: AWS infrastructure foundation
 
 - **Branch:** `feat/aws-foundation`
-- **Status:** **In progress.** The code is written and passes every local check. **Nothing is deployed yet**: deployment needs the owner's AWS credentials, a billing check, and approval of each apply.
+- **Status:** **In progress.** Deployed to `ap-southeast-1` on 2026-11-12 (with owner approval of each apply). Remaining: test users, live role tests, cost check and the teardown test.
 
 ## Gate (blueprint §7, Phase 3)
 
 | Gate item | Evidence | Result |
 |---|---|---|
-| Fresh deploy works in the intended account | `docs/operations/terraform.md` steps 1–2 | **Pending deploy** |
+| Fresh deploy works in the intended account | Bootstrap applied (7) and state migrated; control plane applied (29), 2026-11-12. Smoke: `/v1/health` 200, `/v1/me` 401 without a token and with a garbage token | **Pass** |
 | Unauthorized and wrong-role requests denied | Unit: `services/api/tests/test_handler.py` (13 pass). Live: `tests/integration/test_phase3_live.py` | Unit pass; **live pending** |
 | Documented state path and recovery | `docs/operations/terraform.md` (layout, recovery, never) | Written |
 | No secrets in the repo | `.gitignore` (state, tfvars, backend.hcl, .env); secrets live in GitHub secrets; gitleaks workflow | Written; gitleaks runs in CI |

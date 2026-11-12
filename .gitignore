@@ -42,3 +42,4 @@ Thumbs.db
 # Terraform: partial backend config and Lambda build output
 backend.hcl
 .build/
+*.tfplan

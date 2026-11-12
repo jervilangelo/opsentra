@@ -8,10 +8,13 @@ terraform {
     }
   }
 
-  # One-time bootstrap: start with local state, apply, then uncomment and run
-  #   terraform init -migrate-state -backend-config=../environments/control-plane-dev/backend.hcl
-  # with key = "bootstrap/terraform.tfstate". See docs/operations/terraform.md.
-  # backend "s3" {}
+  # Bootstrap state lives in the bucket it created, under bootstrap/terraform.tfstate
+  # (migrated from a one-time local state). On a brand-new account, comment this
+  # block out, apply with local state, then migrate. See docs/operations/terraform.md.
+  backend "s3" {
+    use_lockfile = true
+    encrypt      = true
+  }
 }
 
 provider "aws" {

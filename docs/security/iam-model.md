@@ -25,3 +25,7 @@ The API maps the Cognito groups `viewer`, `operator` and `admin` to roles, takin
 - `services/api/tests/test_handler.py`: 401 without a token or with an ID token, 403 without a trusted group, role from groups only, forged body role ignored.
 - `infrastructure/environments/control-plane-dev/tests/control_plane.tftest.hcl`: JWT on every route except health, Lambda role logs-only, OIDC trust pinned to the exact repo with no `StringLike`, plan role read-only with a state-write deny, browser client with no secret and code flow only.
 - `services/api/tests/integration/test_phase3_live.py` (after deploy): real 401 without a token and real role mapping for all three users.
+
+## Known limitation: authorizer error format
+
+When the token check fails (no token, an expired or malformed token), API Gateway rejects the request before the Lambda runs and returns `401 {"message":"Unauthorized"}`. That is not the blueprint's `{error: {code, message, requestId}}` envelope, and HTTP APIs cannot customise it. Clients must treat any 401 as "sign in again". Errors raised by the API itself (403, 404, 409, 5xx) use the standard envelope.
