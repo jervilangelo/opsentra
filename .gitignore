@@ -38,3 +38,7 @@ Thumbs.db
 
 # Design tooling working files
 .taste-skill/
+
+# Terraform: partial backend config and Lambda build output
+backend.hcl
+.build/

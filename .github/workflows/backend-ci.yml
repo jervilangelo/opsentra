@@ -1,0 +1,36 @@
+name: backend-ci
+
+on:
+  pull_request:
+    paths: ['services/**', '.github/workflows/backend-ci.yml']
+  push:
+    branches: [main]
+    paths: ['services/**', '.github/workflows/backend-ci.yml']
+
+# No AWS credentials: unit tests only. Integration tests skip without env vars.
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: services/api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # matches the Lambda runtime
+          cache: pip
+          cache-dependency-path: services/api/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+      - run: pytest

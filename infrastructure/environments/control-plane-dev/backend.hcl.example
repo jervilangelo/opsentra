@@ -1,0 +1,5 @@
+# Copy to backend.hcl (gitignored) and fill in the bucket from
+# `terraform output state_bucket` in infrastructure/bootstrap-state.
+bucket = "opsentra-tfstate-000000000000-ap-southeast-1"
+key    = "control-plane-dev/terraform.tfstate"
+region = "ap-southeast-1"

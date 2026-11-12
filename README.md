@@ -144,7 +144,8 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 - [x] React + TypeScript dashboard foundation and page skeletons ([`apps/dashboard/`](apps/dashboard/))
 - [x] Interactive Demo Mode: simulated failure → detection → approval → verified recovery, with audit and analytics
 - [x] Easy and Advanced views: plain-language Easy view by default, full Advanced view one click away
-- [ ] AWS infrastructure and live workflows
+- [ ] AWS infrastructure (Phase 3): Terraform, Cognito, API and CI written and tested locally; **not deployed yet**
+- [ ] Live workflows
 
 ---
 
@@ -156,12 +157,15 @@ opsentra/
 ├── CLAUDE.md                      # guardrails for building with Claude Code
 ├── OPSENTRA_MASTER_BLUEPRINT.md   # source of truth: scope, architecture, phases
 ├── .github/                       # frontend CI, PR template
-├── apps/dashboard/                # React + Vite + TypeScript dashboard (Phase 1 foundation)
+├── apps/dashboard/                # React + Vite + TypeScript dashboard
+├── infrastructure/                # Terraform: state bootstrap, control plane, modules
+├── services/api/                  # Python 3.12 Lambda API (/v1/health, /v1/me)
+├── scripts/bootstrap/             # one-off helper scripts
 ├── brand/                         # logo system, favicons, brand guidelines
 └── docs/                          # ADRs, architecture overview, phase checkpoints
 ```
 
-Backend services (`services/`), Terraform (`infrastructure/`), failure labs (`labs/`) and integration tests will be added in the phases where they are built. See §8 of the [blueprint](OPSENTRA_MASTER_BLUEPRINT.md) for the planned layout.
+Failure labs (`labs/`) and the remaining services will be added in the phases where they are built. See [Terraform operations](docs/operations/terraform.md) for deploying. See §8 of the [blueprint](OPSENTRA_MASTER_BLUEPRINT.md) for the planned layout.
 
 ## Brand
 

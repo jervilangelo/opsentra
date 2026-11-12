@@ -1,0 +1,52 @@
+name: terraform-check
+
+on:
+  pull_request:
+    paths: ['infrastructure/**', 'services/api/src/**', '.github/workflows/terraform-check.yml']
+  push:
+    branches: [main]
+    paths: ['infrastructure/**', 'services/api/src/**', '.github/workflows/terraform-check.yml']
+
+# Static checks only: no AWS credentials, no backend, nothing created.
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [infrastructure/bootstrap-state, infrastructure/environments/control-plane-dev]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '~1.17'
+      - name: fmt
+        run: terraform fmt -check -recursive infrastructure
+      - name: init (no backend)
+        working-directory: ${{ matrix.root }}
+        run: terraform init -backend=false -input=false -lockfile=readonly
+      - name: validate
+        working-directory: ${{ matrix.root }}
+        run: terraform validate
+      - name: test (mocked providers)
+        working-directory: ${{ matrix.root }}
+        run: terraform test
+
+  checkov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install checkov
+      - run: checkov -d infrastructure --config-file infrastructure/.checkov.yaml

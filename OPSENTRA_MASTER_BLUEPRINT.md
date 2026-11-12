@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.4.0 (planning baseline; brand approved; Phase 1 and 2 built; Easy/Advanced views)  
+> **Version:** 1.5.0 (Phases 1–2 complete; Phase 3 infrastructure code written, not yet deployed)  
 > **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–2 complete (gates passed 2026-11-12); Phase 3 (AWS foundation) in progress; **no AWS resources have been deployed under this plan yet**.  
@@ -37,14 +37,15 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-003 | 10 milestone-based phases, not calendar deadlines | Agreed | Work proceeds on acceptance tests, not time estimates. |
 | ADR-004 | Demo Mode and Live AWS Mode clearly separated | Agreed | Demo always available even when labs off. |
 | ADR-005 | React + Vite + TypeScript + Tailwind + shadcn/ui; React Router, TanStack Query + Zustand | Agreed (2026-11-12) | Settled in the Phase 1 build; see `docs/adr/ADR-005-frontend-stack.md`. |
-| ADR-006 | Python AWS Lambda + API Gateway HTTP API + DynamoDB | Proposed technical baseline | Low operational overhead for low traffic. |
-| ADR-007 | Terraform S3 state backend with native locking | Proposed | Requires separately bootstrapped S3 bucket, versioning, encryption. |
-| ADR-008 | Cognito JWT auth with backend-enforced roles | Proposed | Privileged API protected; public Demo has no credentials. |
+| ADR-006 | Python AWS Lambda + API Gateway HTTP API + DynamoDB | Agreed (2026-11-12) | Python 3.12, arm64, stdlib-only API; see ADR-014. |
+| ADR-007 | Terraform S3 state backend with native locking | Agreed (2026-11-12) | `bootstrap-state` root; `use_lockfile = true`; partial backend config; see ADR-014. |
+| ADR-008 | Cognito JWT auth with backend-enforced roles | Agreed (2026-11-12) | Lite tier, admin-only sign-up, PKCE browser client, roles from `cognito:groups`; see ADR-014. |
 | ADR-009 | No NAT gateway, RDS, always-on container infrastructure | Default constraint | Protect $150 AWS promotional credit. |
 | ADR-010 | Branding: "Continuity Shift" logo system | Agreed (2026-11-10) | Chosen from three concepts after a size/sync-icon review; kit and rules in `brand/` and `brand/BRAND_GUIDELINES.md`. |
 | ADR-011 | Phase 1 contract, label and colour-mapping fixes | Agreed (2026-11-12) | One Demo label; `verifiedHealthyAt`, `RemediationRequest`, `OverviewSummary` DTOs; SEV display map; DEGRADED/UNKNOWN colours; light primary = Signal Ink. See `docs/adr/ADR-011-phase1-contract-and-label-fixes.md`. |
 | ADR-012 | Demo Mode engine and Phase 2 contract additions | Agreed (2026-11-12) | `investigate`/`close` routes, remediation list, Runbook/AuditEvent/LabScenario/AnalyticsSummary DTOs, `SECURITY_GROUP` resource type, typed mutation guards. See `docs/adr/ADR-012-demo-engine-and-contract-additions.md`. |
 | ADR-013 | Easy and Advanced views | Agreed (2026-11-12) | Per-browser `view` preference, Easy by default; presentation only, same data source, guards and audit. See `docs/adr/ADR-013-easy-and-advanced-views.md`. |
+| ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
 
@@ -477,6 +478,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Reproducible, least-privilege control plane and API.
 
+**Status (2026-11-12):** infrastructure code, API, tests and CI written and passing locally (ADR-014); deployment pending owner credentials and approval: see `docs/phases/phase-3-checkpoint.md`.
+
 **Work:** bootstrap encrypted/versioned S3 state bucket; native `use_lockfile` locking; separate control-plane/lab Terraform roots; parameterized account/region; IAM GitHub OIDC trust with repo/ref scoping; Cognito user pool and roles; API Gateway HTTP API + JWT auth; Python Lambda API; DynamoDB tables; CloudWatch basic logs and retention; budget alarms and tags; secrets scanning; GitHub Actions plan validation. Set a cap on optional managed services via explicit configuration, not unbounded defaults.
 
 **Deliverables:** `terraform plan/apply/destroy` procedures, authenticated `/v1/me` and `/v1/health`, CI with short-lived credentials, IAM policy tests, sanitized `.env.example`.
@@ -896,5 +899,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.2.0 | 2026-11-12 | ADR-005 agreed (frontend stack incl. React Router, TanStack Query, Zustand). ADR-011: Demo label standardised to `DEMO — SYNTHETIC DATA`; `Incident.verifiedHealthyAt`, `RemediationRequest`, `OverviewSummary` added to §2.4; severity display map and DEGRADED/UNKNOWN colours in §2.1; light primary uses Signal Ink. Phase 1 dashboard foundation built (gate review pending). |
 | 1.3.0 | 2026-11-12 | ADR-012: interactive Demo Mode engine; §4.2 adds `investigate`, `close` and remediation-list routes; §2.4 adds `SECURITY_GROUP`, Runbook, AuditEvent, LabScenario, AnalyticsSummary, Role and typed mutation inputs. Phase 2 built (gate review pending). |
 | 1.4.0 | 2026-11-12 | ADR-013: Easy / Advanced view toggle (Easy default); presentation-only, shared command hook, plain-language Easy screens with a recovery path. |
+| 1.5.0 | 2026-11-12 | Phases 1–2 complete. ADR-006/007/008 agreed; ADR-014 records Phase 3 choices. Phase 3 Terraform, Python API, tests and CI written; not yet deployed. |
 
 **Status:** APPROVED CONCEPT / PHASES 1–2 COMPLETE; Phase 3 in progress; no AWS resources deployed yet. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

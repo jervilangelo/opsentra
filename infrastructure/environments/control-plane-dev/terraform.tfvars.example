@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars (gitignored). Never commit real values.
+account_id         = "000000000000"
+state_bucket       = "opsentra-tfstate-000000000000-ap-southeast-1"
+
+# Optional
+# create_budget                     = true   # off by default (shared account)
+# budget_alert_email                = "you@example.com"
+# monthly_budget_usd                = 5
+# create_github_oidc_provider      = false   # if the account already has one
+# existing_github_oidc_provider_arn = "arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com"

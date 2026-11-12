@@ -1,0 +1,28 @@
+# Checkov configuration for Opsentra Terraform.
+# Every skip is a deliberate, reviewed decision. The reasons are in
+# docs/security/checkov-exceptions.md; revisit them in Phase 9.
+framework:
+  - terraform
+compact: true
+quiet: true
+download-external-modules: false
+skip-check:
+  # Encryption with customer-managed KMS keys (cost; AWS-owned keys / SSE-S3 used instead)
+  - CKV_AWS_158 # CloudWatch log group KMS
+  - CKV_AWS_119 # DynamoDB CMK
+  - CKV_AWS_145 # S3 KMS default encryption
+  - CKV_AWS_173 # Lambda env var CMK (no secrets in env)
+  # Retention and backups sized for a low-cost demo
+  - CKV_AWS_338 # 1-year log retention (14 days by design)
+  - CKV_AWS_28  # DynamoDB PITR (off in dev; cost-reviewed later)
+  # Architecture choices from the blueprint
+  - CKV_AWS_117 # Lambda in a VPC (no VPC/NAT, §3.2)
+  - CKV_AWS_116 # Lambda DLQ (synchronous API invocation only)
+  - CKV_AWS_115 # Lambda reserved concurrency (account limit risk; API throttling instead)
+  - CKV_AWS_50  # X-Ray (optional after MVP, §3.3)
+  - CKV_AWS_272 # Lambda code signing (deferred)
+  - CKV_AWS_309 # API route authorization (GET /v1/health is public by design, §4.2)
+  # State bucket: single region, private, small
+  - CKV_AWS_144 # cross-region replication
+  - CKV_AWS_18  # access logging
+  - CKV2_AWS_62 # event notifications

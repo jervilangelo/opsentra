@@ -1,0 +1,23 @@
+[project]
+name = "opsentra-api"
+version = "0.3.0"
+description = "Opsentra control-plane API (AWS Lambda, Python 3.12)"
+requires-python = "==3.12.*"
+dependencies = []  # stdlib only: nothing to build natively
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "BLE"]
+ignore = ["S101"]  # asserts are fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]  # claim names like token_use are not passwords
