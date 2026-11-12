@@ -27,7 +27,7 @@ const fresh = () => ({ accessToken: 'tok', expiresAt: Date.now() + 3_600_000 });
 function respond(status: number, body: unknown) {
   return vi
     .spyOn(globalThis, 'fetch')
-    .mockResolvedValue(new Response(JSON.stringify(body), { status }));
+    .mockImplementation(() => Promise.resolve(new Response(JSON.stringify(body), { status })));
 }
 
 afterEach(() => {
@@ -129,9 +129,9 @@ describe('live data source fails closed', () => {
 
   it('features from later phases reject as not implemented', async () => {
     _setTokensForTest(fresh());
-    await expect(liveDataSource.listRunbooks()).rejects.toMatchObject({
-      reason: 'not-implemented',
-    });
+    await expect(
+      liveDataSource.getAnalytics({ from: '2026-11-01', to: '2026-11-12' }),
+    ).rejects.toMatchObject({ reason: 'not-implemented' });
     await expect(
       liveDataSource.startLab('nginx-outage', { idempotencyKey: 'k' }),
     ).rejects.toMatchObject({ reason: 'not-implemented' });
@@ -172,5 +172,63 @@ describe('live data source fails closed', () => {
     const spy = respond(200, { data: [], meta: { dataset: 'live', generatedAt: 'x' } });
     await liveDataSource.listAudit();
     expect(spy.mock.calls[0]![0]).toBe('https://api.example.test/v1/audit');
+  });
+
+  it('requesting recovery sends only the runbook ID, never a resource or document', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, {
+      data: { requestId: 'REQ-1', status: 'PENDING' },
+      meta: { dataset: 'live', generatedAt: 'x' },
+    });
+    await liveDataSource.requestRemediation('INC-1', {
+      expectedVersion: 3,
+      runbookId: 'rb-restart-nginx',
+      reason: 'Nginx is down',
+      idempotencyKey: 'key-9',
+    });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://api.example.test/v1/incidents/INC-1/request-remediation');
+    const req = init as RequestInit;
+    expect(req.method).toBe('POST');
+    expect(req.headers).toMatchObject({ 'idempotency-key': 'key-9' });
+    expect(JSON.parse(String(req.body))).toEqual({
+      expectedVersion: 3,
+      runbookId: 'rb-restart-nginx',
+      reason: 'Nginx is down',
+    });
+  });
+
+  it('a decision posts the choice with its guard', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, {
+      data: { requestId: 'REQ-1', status: 'APPROVED' },
+      meta: { dataset: 'live', generatedAt: 'x' },
+    });
+    await liveDataSource.decideRemediation('REQ-1', {
+      expectedVersion: 4,
+      decision: 'APPROVE',
+      reason: 'lab only',
+      idempotencyKey: 'key-10',
+    });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://api.example.test/v1/remediations/REQ-1/decision');
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      expectedVersion: 4,
+      decision: 'APPROVE',
+      reason: 'lab only',
+    });
+  });
+
+  it('reads runbooks and filters recovery requests by incident', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, { data: [], meta: { dataset: 'live', generatedAt: 'x' } });
+    await liveDataSource.listRunbooks();
+    await liveDataSource.listRemediations('INC 1');
+    await liveDataSource.listRemediations();
+    expect(spy.mock.calls.map((c) => c[0])).toEqual([
+      'https://api.example.test/v1/runbooks',
+      'https://api.example.test/v1/remediations?incidentId=INC%201',
+      'https://api.example.test/v1/remediations',
+    ]);
   });
 });

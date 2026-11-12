@@ -7,6 +7,12 @@ token; the read routes need at least the viewer role.
   GET /v1/overview                       counts and last sync
   GET /v1/resources[/{id}]               registered resources and their health
   GET /v1/incidents[/{id}[/timeline]]    incidents and their timelines
+  POST /v1/incidents/{id}/acknowledge|investigate|close          Operator+
+  POST /v1/incidents/{id}/request-remediation                    Operator+
+  POST /v1/remediations/{id}/decision                            Admin
+  GET /v1/remediations[?incidentId=], /v1/remediations/{id}      Viewer+
+  GET /v1/runbooks                                                Viewer+
+  GET /v1/audit                                                   Admin
 
 Responses are `{data, meta}` on success and `{error: {code, message, requestId}}`
 on failure. Timestamps are ISO-8601 UTC. Errors never include stack traces.
@@ -224,34 +230,165 @@ def set_incident_store(s: Any) -> None:
     _incident_store = s
 
 
+def _body(event: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except ValueError as err:
+        raise BadRequest("The body must be a JSON object.") from err
+    if not isinstance(body, dict):
+        raise BadRequest("The body must be a JSON object.")
+    return body
+
+
+def _caller(event: Mapping[str, Any]) -> tuple[str, str, str | None]:
+    """(actor, role, idempotency key). Role and actor come from verified claims only."""
+    claims, role = require_identity(event)
+    headers = {str(k).lower(): v for k, v in (event.get("headers") or {}).items()}
+    return str(claims.get("username") or claims.get("sub")), role, headers.get("idempotency-key")
+
+
+def _denied(err: Any, incident_id: str, action: str, actor: str, role: str, **target: str) -> None:
+    """403/409 on a privileged command is recorded as a DENIED audit item (§5.2)."""
+    if err.status not in (403, 409):
+        return
+    from opsentra_incidents import core
+
+    try:
+        core.record_denied(
+            incident_store(), incident_id=incident_id, action=action, actor=actor, role=role, code=err.code, **target
+        )
+    except Exception:  # noqa: BLE001 - the refusal stands even if the audit write fails
+        logger.exception(json.dumps({"msg": "denied-audit failed"}))
+
+
 def _incident_action(command: str) -> Callable[..., Response]:
     def action(event: Mapping[str, Any], request_id: str, incident_id: str = "", **_: str) -> Response:
         from opsentra_incidents import core
 
-        claims, role = require_identity(event)
-        headers = {str(k).lower(): v for k, v in (event.get("headers") or {}).items()}
-        try:
-            body = json.loads(event.get("body") or "{}")
-            if not isinstance(body, dict):
-                raise ValueError
-        except ValueError as err:
-            raise BadRequest("The body must be a JSON object.") from err
+        actor, role, key = _caller(event)
+        body = _body(event)
         try:
             result = core.user_transition(
                 incident_store(),
                 incident_id=incident_id,
                 command=command,
                 role=role,  # from verified claims only; any role in the body is ignored
-                actor=str(claims.get("username") or claims.get("sub")),
+                actor=actor,
                 expected_version=body.get("expectedVersion"),
                 reason=body.get("reason") if isinstance(body.get("reason"), str) else None,
-                idempotency_key=headers.get("idempotency-key"),
+                idempotency_key=key,
             )
         except core.IncidentError as err:
+            _denied(err, incident_id, command.upper(), actor, role)
             return error(err.status, err.code, err.message, request_id)
         return ok(store.incident_dto(result["incident"]), request_id)
 
     return action
+
+
+def request_remediation(event: Mapping[str, Any], request_id: str, incident_id: str = "", **_: str) -> Response:
+    from opsentra_incidents import core, remediation
+
+    actor, role, key = _caller(event)
+    body = _body(event)
+    try:
+        result = remediation.request_remediation(
+            incident_store(),
+            incident_id=incident_id,
+            role=role,
+            actor=actor,
+            expected_version=body.get("expectedVersion"),
+            runbook_id=body.get("runbookId"),  # the only target-related input; checked against the allowlist
+            reason=body.get("reason"),
+            idempotency_key=key,
+        )
+    except core.IncidentError as err:
+        _denied(err, incident_id, "REMEDIATION_REQUEST", actor, role)
+        return error(err.status, err.code, err.message, request_id)
+    return ok(store.remediation_dto(result["request"]), request_id)
+
+
+def _invoke_coordinator(remediation_request_id: str) -> None:
+    """Async hand-off; if it fails the reconciler dispatches within minutes."""
+    name = os.environ.get("COORDINATOR_FUNCTION", "")
+    if not name:
+        return
+    try:
+        import boto3
+
+        boto3.client("lambda").invoke(
+            FunctionName=name,
+            InvocationType="Event",
+            Payload=json.dumps({"requestId": remediation_request_id}).encode(),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            json.dumps({"msg": "coordinator invoke failed", "remediationRequestId": remediation_request_id})
+        )
+
+
+def decide_remediation(event: Mapping[str, Any], request_id: str, remediation_id: str = "", **_: str) -> Response:
+    from opsentra_incidents import core, remediation
+
+    actor, role, key = _caller(event)
+    body = _body(event)
+    try:
+        result = remediation.decide_remediation(
+            incident_store(),
+            request_id=remediation_id,
+            role=role,
+            actor=actor,
+            expected_version=body.get("expectedVersion"),
+            decision=body.get("decision"),
+            reason=body.get("reason"),
+            idempotency_key=key,
+        )
+    except core.IncidentError as err:
+        req = remediation.request(incident_store(), remediation_id) if err.status in (403, 409) else None
+        if req:
+            _denied(
+                err,
+                str(req.get("incidentId", "")),
+                "REMEDIATION_DECISION",
+                actor,
+                role,
+                target_type="REMEDIATION",
+                target_id=remediation_id,
+            )
+        return error(err.status, err.code, err.message, request_id)
+    if result.get("dispatch"):
+        _invoke_coordinator(remediation_id)
+    return ok(store.remediation_dto(result["request"]), request_id)
+
+
+def list_remediations(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
+    _viewer(event)
+    q = event.get("queryStringParameters") or {}
+    incident_id = q.get("incidentId")
+    rows = [store.remediation_dto(i) for i in get_store().scan(store.tables()["remediations"]) if i.get("requestId")]
+    if incident_id:
+        rows = [r for r in rows if r["incidentId"] == incident_id]
+    return ok(sorted(rows, key=lambda r: r["requestedAt"], reverse=True), request_id)
+
+
+def get_remediation(event: Mapping[str, Any], request_id: str, remediation_id: str = "", **_: str) -> Response:
+    _viewer(event)
+    item = get_store().get(store.tables()["remediations"], {"requestId": remediation_id})
+    if not item:
+        raise NotFound(f"Request {remediation_id} was not found.")
+    return ok(store.remediation_dto(item), request_id)
+
+
+def list_runbooks(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
+    from opsentra_incidents import remediation
+
+    _viewer(event)
+    applies: dict[str, list[str]] = {}
+    for item in get_store().scan(store.tables()["resources"]):
+        for rid in remediation.allowed_runbooks(item):
+            applies.setdefault(rid, []).append(str(item["resourceId"]))
+    rows = [store.runbook_dto(rb, sorted(applies.get(rb.id, []))) for rb in remediation.CATALOG.values()]
+    return ok(rows, request_id)
 
 
 def list_audit(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
@@ -276,6 +413,11 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[..., Response], tuple[str, ...
     ("POST", re.compile(rf"^/v1/incidents/{_ID}/acknowledge$"), _incident_action("acknowledge"), ("incident_id",)),
     ("POST", re.compile(rf"^/v1/incidents/{_ID}/investigate$"), _incident_action("investigate"), ("incident_id",)),
     ("POST", re.compile(rf"^/v1/incidents/{_ID}/close$"), _incident_action("close"), ("incident_id",)),
+    ("POST", re.compile(rf"^/v1/incidents/{_ID}/request-remediation$"), request_remediation, ("incident_id",)),
+    ("GET", re.compile(r"^/v1/remediations$"), list_remediations, ()),
+    ("GET", re.compile(rf"^/v1/remediations/{_ID}$"), get_remediation, ("remediation_id",)),
+    ("POST", re.compile(rf"^/v1/remediations/{_ID}/decision$"), decide_remediation, ("remediation_id",)),
+    ("GET", re.compile(r"^/v1/runbooks$"), list_runbooks, ()),
     ("GET", re.compile(r"^/v1/audit$"), list_audit, ()),
 ]
 

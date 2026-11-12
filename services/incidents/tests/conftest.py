@@ -12,6 +12,7 @@ ACCOUNT = "111122223333"
 REGION = "ap-southeast-1"
 ALARM = "opsentra-lab-nginx-availability"
 RESOURCE = "i-0lab"
+DOC_HASH = "a" * 64
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +43,7 @@ def store() -> Iterator[core.Store]:
         table("aud", [("PK", "HASH"), ("SK", "RANGE")])
         table("cor", [("correlationKey", "HASH")])
         table("res", [("resourceId", "HASH")])
+        table("rem", [("requestId", "HASH")])
         ddb.put_item(
             TableName="res",
             Item=core.ser_item(
@@ -52,10 +54,13 @@ def store() -> Iterator[core.Store]:
                     "alarmNames": [ALARM],
                     "alarmTitles": {ALARM: "Nginx health check failing on the lab web server"},
                     "health": "UNHEALTHY",
+                    "runbooks": {
+                        "rb-restart-nginx": {"document": "Opsentra-Lab-RestartNginx", "documentHash": DOC_HASH}
+                    },
                 }
             ),
         )
-        yield core.Store(ddb, core.Tables("inc", "aud", "cor", "res"))
+        yield core.Store(ddb, core.Tables("inc", "aud", "cor", "res", "rem"))
 
 
 @pytest.fixture

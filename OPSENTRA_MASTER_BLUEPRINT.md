@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.7.1 (Phases 1–5 complete; Phase 6 next)  
+> **Version:** 1.8.0 (Phases 1–5 complete; Phase 6 in progress)  
 > **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–4 complete (gates passed 2026-11-12). The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests. Phase 5 in progress.  
@@ -48,6 +48,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
 | ADR-015 | Phase 4 lab design and Live adapter | Agreed (2026-11-12) | Own VPC, HTTP-only probe target, self-terminating lab with required expiry, self-disabling probe, registry via Terraform, PKCE sign-in, `VITE_COGNITO_DOMAIN`. See `docs/adr/ADR-015-phase4-lab-and-live-adapter.md`. |
 | ADR-016 | Incident pipeline | Agreed (2026-11-12) | Validated ingest, `EVENT#` dedup, correlation transaction, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS once per incident, DLQ. See `docs/adr/ADR-016-incident-pipeline.md`. |
+| ADR-017 | Approved remediation | Agreed (2026-11-12) | Hash-pinned runbooks, request/decision, self-approval flagged, coordinator lock (one command per approval), SSM status events, 3-healthy-probe verification, denied attempts audited. See `docs/adr/ADR-017-approved-remediation.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
 
@@ -332,6 +333,8 @@ Separate small on-demand tables for readability and independent permissions:
 
 **`opsentra-remediations`** (recommended fourth table): `PK=requestId`, actionKey, incidentId, resourceId, requestor, approver, status, executionId, idempotencyKey, expectedVersion, errorSummary, timestamps, expiry. Conditional transitions to guard execution races.
 
+**v1.8.0 (ADR-017):** remediation items add `runbookId`, `runbookVersion`, `documentHash` (pinned at request time), `requestedByRole`, `selfApproved`, `decisionReason`, `startedAt`; `executionId` is the SSM command ID. Incidents add `activeRequestId`. Registry items add `runbooks` (`runbookId → {document, documentHash}`) and the probe's `healthyStreak` / `healthyStreakSince`. `RemediationRequest` DTO adds optional `selfApproved`.
+
 **`opsentra-active-correlations`** (optional fifth table): correlation key → incident ID with conditional creation and explicit clear on verified terminal close; avoid accidental duplicates across asynchronous event replay.
 
 **v1.7.0 (ADR-016):** the correlation item keeps `lastResolvedAt` after a verified resolution so older ALARMs never reopen it; correlation keys are `region:resourceId:alarmName` (no account ID). The audit table also holds `EVENT#<eventId>` delivery markers (TTL 7 days) and `IDEMPOTENCY#<key>` records (TTL 24 h). Incidents gain `lastSignalAt`, `signalClearedAt`, `assignedTo` and `alarmName`. Registry items gain `alarmNames`, `alarmTitles` and `severity`.
@@ -523,6 +526,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 **Deliverables:** Recovery Center, approval modal, execution timeline, verified Nginx restart, audit trail.
 
 **Gate:** genuine Nginx failure recovered without CLI; unauthorized and arbitrary resource operations denied; failed SSM success cannot falsely mark recovered; replay does not repeat action.
+
+**Status (2026-11-12):** code and tests written (ADR-017); deployment and the live gate test pending: see `docs/phases/phase-6-checkpoint.md`.
 
 ### Phase 7 — Live Simulation Lab and guardrails
 
@@ -913,5 +918,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.6.1 | 2026-11-12 | Phases 3 and 4 gates passed and approved by the owner; §16 checklist updated with verified items only. |
 | 1.7.0 | 2026-11-12 | ADR-016: incident pipeline (ingest, correlation, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS alerts, DLQ); §4.3 schema additions; incident write routes and `GET /v1/audit` implemented. |
 | 1.7.1 | 2026-11-12 | Phase 5 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
+| 1.8.0 | 2026-11-12 | ADR-017: approved remediation (hash-pinned runbook catalog, request/decision routes, self-approval allowed and flagged, coordinator with a conditional lock, SSM status events, verification by 3 consecutive healthy probes, denied attempts audited); reconciler every 2 minutes. |
 
 **Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phase 6 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

@@ -1,11 +1,14 @@
-# IAM and identity model (Phase 3)
+# IAM and identity model (Phases 3–6)
 
 ## Principals
 
 | Principal | How it authenticates | What it can do | Guardrails |
 |---|---|---|---|
 | Owner (local) | `aws login` / SSO, short-lived | Runs Terraform plan; apply/destroy only after approving the exact command | Terraform `allowed_account_ids`, region validation |
-| `opsentra-dev-api-role` (Lambda) | Lambda service, `aws:SourceAccount` condition | `logs:CreateLogStream`, `logs:PutLogEvents` on its own log group | No DynamoDB, no wildcard resources (tested) |
+| `opsentra-dev-api-role` (Lambda) | Lambda service, `aws:SourceAccount` condition | Own logs; read named tables; conditional `PutItem`/`UpdateItem`/`ConditionCheckItem` on incidents, audit, correlations and remediations; `lambda:InvokeFunction` on the coordinator only | No `DeleteItem`, no SSM or EC2, no wildcard resources (tested) |
+| `opsentra-dev-incident-ingest-role` (Lambda) | Lambda service | Incident tables (no delete), read the registry, publish to the alert topic, its DLQ | No SSM (tested) |
+| `opsentra-dev-incident-reconciler-role` (Lambda) | Lambda service | As ingest, plus `cloudwatch:DescribeAlarms` on `opsentra-lab-*` alarms and the runbook statements below (backstop dispatch) | Same as the coordinator |
+| `opsentra-dev-remediation-coordinator-role` (Lambda) | Lambda service | Incident tables (no delete); `ssm:SendCommand` only on `document/Opsentra-Lab-*` and instances tagged `opsentra:lab=true`; `ssm:GetCommandInvocation`, `ec2:DescribeInstances` (no resource-level support) | No sessions, automations, document changes or instance lifecycle actions (tested); the code re-checks the registry, document hash and tag before sending |
 | `opsentra-dev-gha-plan` (GitHub Actions) | OIDC from `token.actions.githubusercontent.com`, aud `sts.amazonaws.com` | `ReadOnlyAccess`, read the state bucket; **explicitly denied** writing state | Trust only for `repo:jervilangelo/opsentra:pull_request` and `:ref:refs/heads/main`, exact match (tested); 1-hour sessions |
 | Dashboard users | Cognito, Authorization Code + PKCE (Phase 4) | Call the API with an access token | Roles only from `cognito:groups`; no self sign-up |
 | Integration tests | `AdminInitiateAuth` with the owner's IAM credentials | Get tokens for the three test users | The client allows only admin auth, so it cannot be used from a browser |

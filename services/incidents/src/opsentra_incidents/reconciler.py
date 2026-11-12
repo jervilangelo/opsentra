@@ -1,4 +1,4 @@
-"""Incident reconciler Lambda (every 5 minutes).
+"""Incident reconciler Lambda (every 2 minutes).
 
 1. Missing-event repair: a registered alarm in ALARM with no active incident
    opens one (same correlation path as ingest, so it is never a duplicate).
@@ -6,6 +6,10 @@
    signalClearedAt gets one.
 3. Verified self-heal: alarm OK, cleared, and the independent probe reported
    HEALTHY at least two minutes after the clear -> RESOLVED.
+4. Remediation backstop (remediation.reconcile): expired approvals, approvals
+   the coordinator never picked up, commands with no status event.
+5. Remediation verification (remediation.verify): VERIFYING -> RESOLVED only
+   with 3 consecutive healthy probes after the command finished.
 It never resolves on a timeout or on missing data.
 """
 
@@ -17,7 +21,7 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-from . import core, ingest
+from . import core, ingest, remediation
 from .ingest import correlation_key
 
 logger = logging.getLogger("opsentra-incident-reconciler")
@@ -34,14 +38,24 @@ def alarm_states(cloudwatch: Any, names: list[str]) -> dict[str, dict[str, Any]]
     return out
 
 
-def run(store: core.Store, cloudwatch: Any, account: str, region: str, topic_arn: str) -> dict[str, Any]:
+def run(
+    store: core.Store,
+    cloudwatch: Any,
+    account: str,
+    region: str,
+    topic_arn: str,
+    ssm: Any = None,
+    ec2: Any = None,
+) -> dict[str, Any]:
     registry = store.registry_items()
     by_alarm: dict[str, Mapping[str, Any]] = {}
     for r in registry:
         for name in r.get("alarmNames") or []:
             by_alarm[name] = r
     states = alarm_states(cloudwatch, sorted(by_alarm)) if by_alarm else {}
-    report = {"opened": 0, "cleared": 0, "resolved": 0, "checked": len(states)}
+    report: dict[str, Any] = {"opened": 0, "cleared": 0, "resolved": 0, "checked": len(states)}
+    if store.t.remediations and ssm is not None and ec2 is not None:
+        report |= remediation.reconcile(store, ssm, ec2)
 
     # 1. Repair missed ALARM events.
     for name, st in states.items():
@@ -77,6 +91,11 @@ def run(store: core.Store, cloudwatch: Any, account: str, region: str, topic_arn
         if not incident or incident.get("state") not in core.ACTIVE:
             continue
         st = states.get(str(incident.get("alarmName", "")))
+        if incident.get("state") == "VERIFYING" and store.t.remediations:
+            res = registry_by_id.get(incident["resourceId"])
+            if remediation.verify(store, incident, res, bool(st and st["state"] == "OK")) == "resolved":
+                report["resolved"] += 1
+            continue
         if not st or st["state"] != "OK":
             continue
         if not incident.get("signalClearedAt"):
@@ -107,6 +126,8 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         os.environ["ACCOUNT_ID"],
         os.environ["AWS_REGION"],
         os.environ.get("ALERT_TOPIC_ARN", ""),
+        boto3.client("ssm"),
+        boto3.client("ec2"),
     )
     logger.info(json.dumps({"msg": "reconcile", **report}))
     return report

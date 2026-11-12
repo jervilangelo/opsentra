@@ -65,8 +65,8 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
-    condition     = length(module.api.route_authorization) == 12 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
-    error_message = "Phase 5 exposes twelve routes and every write route needs a JWT."
+    condition     = length(module.api.route_authorization) == 17 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
+    error_message = "Phase 6 exposes seventeen routes and every write route needs a JWT."
   }
   assert {
     condition     = module.api.throttling.burst <= 10 && module.api.throttling.rate <= 5
@@ -84,10 +84,23 @@ run "lambda_role_is_least_privilege" {
   assert {
     condition = alltrue(flatten([
       for s in module.api.lambda_policy.Statement : [
-        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"], a)
+        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem", "lambda:InvokeFunction"], a)
       ]
     ]))
-    error_message = "The API Lambda may write its logs, read tables and make conditional writes; nothing else."
+    error_message = "The API Lambda may write its logs, read tables, make conditional writes and invoke the coordinator; nothing else."
+  }
+  assert {
+    condition = alltrue([
+      for s in module.api.lambda_policy.Statement : s.Resource == module.incidents.coordinator_function_arn
+      if contains(s.Action, "lambda:InvokeFunction")
+    ])
+    error_message = "The API may invoke only the remediation coordinator."
+  }
+  assert {
+    condition = !anytrue(flatten([
+      for s in module.api.lambda_policy.Statement : [for a in s.Action : startswith(a, "ssm:") || startswith(a, "ec2:")]
+    ]))
+    error_message = "The API never calls SSM or EC2 itself; only the coordinator runs runbooks."
   }
   assert {
     condition     = !anytrue([for s in module.api.lambda_policy.Statement : s.Resource == "*"])
@@ -218,7 +231,7 @@ run "incident_pipeline_guardrails" {
 
   assert {
     condition = !anytrue(flatten([
-      for p in [module.incidents.ingest_policy, module.incidents.reconciler_policy, module.api.lambda_policy] : [
+      for p in [module.incidents.ingest_policy, module.incidents.reconciler_policy, module.incidents.coordinator_policy, module.api.lambda_policy] : [
         for st in p.Statement : [for a in st.Action : strcontains(lower(a), "delete")]
       ]
     ]))
@@ -229,8 +242,8 @@ run "incident_pipeline_guardrails" {
     error_message = "Failed ingest events must land in the DLQ."
   }
   assert {
-    condition     = module.incidents.reconcile_schedule == "rate(5 minutes)"
-    error_message = "The reconciler runs every 5 minutes."
+    condition     = module.incidents.reconcile_schedule == "rate(2 minutes)"
+    error_message = "The reconciler runs every 2 minutes."
   }
   assert {
     condition     = one([for st in module.incidents.reconciler_policy.Statement : st.Resource if st.Sid == "DescribeLabAlarms"]) == "arn:aws:cloudwatch:ap-southeast-1:111122223333:alarm:opsentra-lab-*"
@@ -239,5 +252,51 @@ run "incident_pipeline_guardrails" {
   assert {
     condition     = alltrue([for st in module.incidents.ingest_policy.Statement : st.Resource != "*" || st.Sid == "UseAwsManagedSnsKey"])
     error_message = "Only the KMS via-SNS statement may use a wildcard resource."
+  }
+}
+
+run "remediation_guardrails" {
+  command = apply # mocked: nothing is created
+
+  assert {
+    condition     = module.incidents.coordinator_has_dlq
+    error_message = "Failed coordinator invocations must land in a DLQ."
+  }
+  assert {
+    condition     = !anytrue([for st in module.incidents.ingest_policy.Statement : contains(st.Action, "ssm:SendCommand")])
+    error_message = "The ingest Lambda never runs commands."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for p in [module.incidents.coordinator_policy, module.incidents.reconciler_policy] : [
+        for st in p.Statement : (
+          st.Resource == "arn:aws:ssm:ap-southeast-1:111122223333:document/Opsentra-Lab-*" ||
+          (st.Resource == "arn:aws:ec2:ap-southeast-1:111122223333:instance/*" && st.Condition.StringEquals["ssm:resourceTag/opsentra:lab"] == "true")
+        ) if contains(st.Action, "ssm:SendCommand")
+      ]
+    ]))
+    error_message = "SendCommand only for Opsentra-Lab-* documents on instances tagged opsentra:lab=true."
+  }
+  assert {
+    condition = !anytrue(flatten([
+      for p in [module.incidents.coordinator_policy, module.incidents.reconciler_policy] : [
+        for st in p.Statement : contains(st.Action, "ssm:SendCommand") && st.Resource == "*"
+      ]
+    ]))
+    error_message = "SendCommand is never granted on a wildcard resource."
+  }
+  assert {
+    condition = alltrue([
+      for st in module.incidents.coordinator_policy.Statement : st.Resource != "*" || contains(["UseAwsManagedSnsKey", "ReadCommandStatusAndTargets"], st.Sid)
+    ])
+    error_message = "Only the KMS via-SNS and read-only status statements may use a wildcard resource."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for st in module.incidents.coordinator_policy.Statement : [
+        for a in st.Action : !contains(["ssm:StartSession", "ssm:StartAutomationExecution", "ssm:CreateDocument", "ssm:UpdateDocument", "ec2:RunInstances", "ec2:TerminateInstances"], a)
+      ]
+    ]))
+    error_message = "No sessions, automations, document changes or instance lifecycle actions."
   }
 }

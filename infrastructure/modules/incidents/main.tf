@@ -1,4 +1,5 @@
-# Incident ingest, reconciler and alerting (blueprint §3.1, §4.1, §4.4; ADR-016).
+# Incident ingest, reconciler, alerting (ADR-016) and the remediation
+# coordinator (ADR-017; blueprint §3.1, §4.1, §4.4).
 # Least privilege: no DeleteItem anywhere (the audit trail is append-only).
 
 terraform {
@@ -15,7 +16,7 @@ variable "source_dir" { type = string }
 variable "build_dir" { type = string }
 
 variable "tables" {
-  description = "incidents, audit, correlations, resources -> { name, arn }"
+  description = "incidents, audit, correlations, resources, remediations -> { name, arn }"
   type        = map(object({ name = string, arn = string }))
 }
 
@@ -34,7 +35,13 @@ variable "alarm_name_prefix" {
 
 variable "reconcile_rate_minutes" {
   type    = number
-  default = 5
+  default = 2
+}
+
+variable "runbook_document_prefix" {
+  description = "The only SSM documents the coordinator may run (owned by the lab root)."
+  type        = string
+  default     = "Opsentra-Lab-"
 }
 
 variable "log_retention_days" {
@@ -43,14 +50,16 @@ variable "log_retention_days" {
 }
 
 locals {
-  ingest_name     = "${var.name_prefix}-incident-ingest"
-  reconciler_name = "${var.name_prefix}-incident-reconciler"
-  table_arns      = [for t in values(var.tables) : t.arn]
+  ingest_name      = "${var.name_prefix}-incident-ingest"
+  reconciler_name  = "${var.name_prefix}-incident-reconciler"
+  coordinator_name = "${var.name_prefix}-remediation-coordinator"
+  table_arns       = [for t in values(var.tables) : t.arn]
   env = {
     INCIDENTS_TABLE    = var.tables["incidents"].name
     AUDIT_TABLE        = var.tables["audit"].name
     CORRELATIONS_TABLE = var.tables["correlations"].name
     RESOURCES_TABLE    = var.tables["resources"].name
+    REMEDIATIONS_TABLE = var.tables["remediations"].name
     ACCOUNT_ID         = var.account_id
     ALERT_TOPIC_ARN    = aws_sns_topic.alerts.arn
   }
@@ -78,6 +87,13 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alert_email
 }
 
+resource "aws_sqs_queue" "coordinator_dlq" {
+  name                      = "${local.coordinator_name}-dlq"
+  message_retention_seconds = 14 * 24 * 3600
+  sqs_managed_sse_enabled   = true
+  tags                      = { "opsentra:component" = "remediation" }
+}
+
 resource "aws_sqs_queue" "ingest_dlq" {
   name                      = "${local.ingest_name}-dlq"
   message_retention_seconds = 14 * 24 * 3600
@@ -103,13 +119,13 @@ locals {
       Sid      = "IncidentData"
       Effect   = "Allow"
       Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem", "dynamodb:Query"]
-      Resource = [var.tables["incidents"].arn, var.tables["audit"].arn, var.tables["correlations"].arn]
+      Resource = [var.tables["incidents"].arn, var.tables["audit"].arn, var.tables["correlations"].arn, var.tables["remediations"].arn]
     },
     {
       Sid      = "ReadRegistryAndCorrelations"
       Effect   = "Allow"
       Action   = ["dynamodb:GetItem", "dynamodb:Scan"]
-      Resource = [var.tables["resources"].arn, var.tables["correlations"].arn]
+      Resource = [var.tables["resources"].arn, var.tables["correlations"].arn, var.tables["remediations"].arn]
     },
     {
       Sid      = "PublishAlerts"
@@ -123,6 +139,30 @@ locals {
       Action    = ["kms:GenerateDataKey", "kms:Decrypt"]
       Resource  = "*"
       Condition = { StringEquals = { "kms:ViaService" = "sns.${var.region}.amazonaws.com" } }
+    },
+  ]
+
+  # Runs only Opsentra lab documents, only on instances tagged opsentra:lab=true.
+  # The request, registry and document hash are checked again in code (ADR-017).
+  runbook_statements = [
+    {
+      Sid      = "RunLabDocumentsOnly"
+      Effect   = "Allow"
+      Action   = ["ssm:SendCommand"]
+      Resource = "arn:aws:ssm:${var.region}:${var.account_id}:document/${var.runbook_document_prefix}*"
+    },
+    {
+      Sid       = "OnLabInstancesOnly"
+      Effect    = "Allow"
+      Action    = ["ssm:SendCommand"]
+      Resource  = "arn:aws:ec2:${var.region}:${var.account_id}:instance/*"
+      Condition = { StringEquals = { "ssm:resourceTag/opsentra:lab" = "true" } }
+    },
+    {
+      Sid      = "ReadCommandStatusAndTargets"
+      Effect   = "Allow"
+      Action   = ["ssm:GetCommandInvocation", "ec2:DescribeInstances"] # no resource-level support
+      Resource = "*"
     },
   ]
 
@@ -146,7 +186,7 @@ locals {
 
   reconciler_policy = {
     Version = "2012-10-17"
-    Statement = concat(local.data_statements, [
+    Statement = concat(local.data_statements, local.runbook_statements, [
       {
         Sid      = "OwnLogs"
         Effect   = "Allow"
@@ -161,10 +201,33 @@ locals {
       },
     ])
   }
+
+  coordinator_policy = {
+    Version = "2012-10-17"
+    Statement = concat(local.data_statements, local.runbook_statements, [
+      {
+        Sid      = "OwnLogs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.coordinator.arn}:*"
+      },
+      {
+        Sid      = "DeadLetter"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = aws_sqs_queue.coordinator_dlq.arn
+      },
+    ])
+  }
 }
 
 resource "aws_cloudwatch_log_group" "ingest" {
   name              = "/aws/lambda/${local.ingest_name}"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_cloudwatch_log_group" "coordinator" {
+  name              = "/aws/lambda/${local.coordinator_name}"
   retention_in_days = var.log_retention_days
 }
 
@@ -182,6 +245,17 @@ resource "aws_iam_role_policy" "ingest" {
   name   = "ingest"
   role   = aws_iam_role.ingest.id
   policy = jsonencode(local.ingest_policy)
+}
+
+resource "aws_iam_role" "coordinator" {
+  name               = "${local.coordinator_name}-role"
+  assume_role_policy = jsonencode(local.lambda_trust)
+}
+
+resource "aws_iam_role_policy" "coordinator" {
+  name   = "coordinator"
+  role   = aws_iam_role.coordinator.id
+  policy = jsonencode(local.coordinator_policy)
 }
 
 resource "aws_iam_role" "reconciler" {
@@ -230,6 +304,40 @@ resource "aws_lambda_function_event_invoke_config" "ingest" {
   maximum_event_age_in_seconds = 3600
 }
 
+resource "aws_lambda_function" "coordinator" {
+  #checkov:skip=CKV_AWS_115:Account concurrency limit is 10; one invocation per approval or SSM status change.
+  function_name    = local.coordinator_name
+  role             = aws_iam_role.coordinator.arn
+  runtime          = "python3.12"
+  architectures    = ["arm64"]
+  handler          = "opsentra_incidents.coordinator.lambda_handler"
+  filename         = data.archive_file.code.output_path
+  source_code_hash = data.archive_file.code.output_base64sha256
+  memory_size      = 256
+  timeout          = 30
+
+  environment { variables = local.env }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.coordinator_dlq.arn
+  }
+
+  logging_config {
+    log_format = "Text"
+    log_group  = aws_cloudwatch_log_group.coordinator.name
+  }
+
+  tags       = { "opsentra:component" = "remediation" }
+  depends_on = [aws_iam_role_policy.coordinator]
+}
+
+# Retries are safe: dispatch takes a conditional lock and never resends.
+resource "aws_lambda_function_event_invoke_config" "coordinator" {
+  function_name                = aws_lambda_function.coordinator.function_name
+  maximum_retry_attempts       = 2
+  maximum_event_age_in_seconds = 900
+}
+
 resource "aws_lambda_function" "reconciler" {
   #checkov:skip=CKV_AWS_115:Account concurrency limit is 10; one scheduled run every 5 minutes.
   #checkov:skip=CKV_AWS_116:Scheduled reconciler: a failed run is simply repeated by the next one.
@@ -241,7 +349,7 @@ resource "aws_lambda_function" "reconciler" {
   filename         = data.archive_file.code.output_path
   source_code_hash = data.archive_file.code.output_base64sha256
   memory_size      = 256
-  timeout          = 30
+  timeout          = 60
 
   environment { variables = local.env }
 
@@ -299,4 +407,8 @@ output "alert_topic_name" { value = aws_sns_topic.alerts.name }
 output "ingest_policy" { value = local.ingest_policy }
 output "reconciler_policy" { value = local.reconciler_policy }
 output "reconcile_schedule" { value = aws_scheduler_schedule.reconciler.schedule_expression }
+output "coordinator_function_arn" { value = aws_lambda_function.coordinator.arn }
+output "coordinator_function_name" { value = aws_lambda_function.coordinator.function_name }
+output "coordinator_policy" { value = local.coordinator_policy }
+output "coordinator_has_dlq" { value = aws_lambda_function.coordinator.dead_letter_config[0].target_arn == aws_sqs_queue.coordinator_dlq.arn }
 output "has_dlq" { value = aws_lambda_function.ingest.dead_letter_config[0].target_arn == aws_sqs_queue.ingest_dlq.arn }

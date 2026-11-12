@@ -1,7 +1,6 @@
-"""Read-only access to the control-plane DynamoDB tables (blueprint §4.3).
+"""Read access to the control-plane DynamoDB tables (blueprint §4.3).
 
-The API Lambda's IAM role allows only GetItem, Query and Scan on these
-tables, so nothing here can write. Responses are shaped as the frontend DTOs
+Reads only: writes go through opsentra_incidents (core, remediation). Responses are shaped as the frontend DTOs
 (apps/dashboard/src/types/domain.ts). ARNs and account details are never
 returned to the client (§4.2).
 """
@@ -76,6 +75,7 @@ def tables() -> dict[str, str]:
         "resources": os.environ.get("RESOURCES_TABLE", ""),
         "incidents": os.environ.get("INCIDENTS_TABLE", ""),
         "audit": os.environ.get("AUDIT_TABLE", ""),
+        "remediations": os.environ.get("REMEDIATIONS_TABLE", ""),
     }
 
 
@@ -169,3 +169,40 @@ def audit_dto(item: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("actorId", "previousState", "newState"):
         _opt(item, out, key)
     return out
+
+
+REMEDIATION_STATES = ("PENDING", "APPROVED", "REJECTED", "RUNNING", "SUCCEEDED", "FAILED")
+
+
+def remediation_dto(item: Mapping[str, Any]) -> dict[str, Any]:
+    """A remediation request as the frontend RemediationRequest. The document hash,
+    command output and anything account-specific stay server-side."""
+    status = item.get("status")
+    out: dict[str, Any] = {
+        "requestId": item["requestId"],
+        "actionKey": item.get("actionKey", ""),
+        "incidentId": item.get("incidentId", ""),
+        "resourceId": item.get("resourceId", ""),
+        "requestedBy": item.get("requestedBy", ""),
+        "status": status if status in REMEDIATION_STATES else "FAILED",
+        "expectedVersion": int(item.get("expectedVersion", 1)),
+        "requestedAt": item.get("requestedAt", ""),
+        "expiresAt": item.get("expiresAt", ""),
+    }
+    for key in ("approvedBy", "executionId", "errorSummary", "decidedAt", "completedAt"):
+        _opt(item, out, key)
+    if item.get("selfApproved") is True:
+        out["selfApproved"] = True
+    return out
+
+
+def runbook_dto(rb: Any, resource_ids: list[str]) -> dict[str, Any]:
+    return {
+        "id": rb.id,
+        "version": rb.version,
+        "title": rb.title,
+        "description": rb.description,
+        "actionKey": rb.action_key,
+        "applicableResourceIds": resource_ids,
+        "requiresApproval": True,
+    }

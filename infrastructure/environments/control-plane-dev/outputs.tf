@@ -42,3 +42,12 @@ output "gha_plan_role_arn" {
   description = "Set as the GitHub repository secret AWS_PLAN_ROLE_ARN (it contains the account ID)."
   value       = module.ci.plan_role_arn
 }
+
+output "coordinator_function_arn" {
+  description = "Remediation coordinator; the lab's SSM status rule targets it."
+  value       = module.incidents.coordinator_function_arn
+}
+
+output "coordinator_function_name" {
+  value = module.incidents.coordinator_function_name
+}

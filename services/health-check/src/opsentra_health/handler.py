@@ -167,10 +167,21 @@ def update_registry(c: Clients, cfg: Config, health: str, state: str, checked_at
     if verified:
         names["#tv"] = "tagVerificationAt"
         sets.append("#tv = :c")
+    # Consecutive HEALTHY probes and when the run began: remediation is verified
+    # only by 3 in a row that all started after the runbook finished (ADR-017).
+    names |= {"#n": "healthyStreak", "#since": "healthyStreakSince"}
+    values[":zero"] = {"N": "0"}
+    removes = ""
+    if health == "HEALTHY":
+        values[":one"] = {"N": "1"}
+        sets += ["#n = if_not_exists(#n, :zero) + :one", "#since = if_not_exists(#since, :c)"]
+    else:
+        sets.append("#n = :zero")
+        removes = " REMOVE #since"
     c.dynamodb.update_item(
         TableName=cfg.resources_table,
         Key={"resourceId": {"S": cfg.instance_id}},
-        UpdateExpression="SET " + ", ".join(sets),
+        UpdateExpression="SET " + ", ".join(sets) + removes,
         ConditionExpression="attribute_exists(resourceId)",  # only registered resources
         ExpressionAttributeNames=names,
         ExpressionAttributeValues=values,

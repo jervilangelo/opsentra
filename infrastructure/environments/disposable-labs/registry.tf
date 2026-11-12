@@ -90,12 +90,17 @@ locals {
       region            = { S = var.region }
       arn               = { S = aws_instance.web.arn }
       allowedRunbookIds = { L = [{ S = "rb-restart-nginx" }] }
-      scenario          = { S = "nginx" }
-      severity          = { S = "HIGH" }
-      alarmNames        = { L = [{ S = aws_cloudwatch_metric_alarm.nginx.alarm_name }] }
-      alarmTitles       = { M = { (aws_cloudwatch_metric_alarm.nginx.alarm_name) = { S = "Nginx health check failing on the lab web server" } } }
-      labExpiresAt      = { S = local.expires_at }
-      health            = { S = "UNKNOWN" }
+      # Hash-pinned runbook: the coordinator sends this exact document version (ADR-017).
+      runbooks = { M = { "rb-restart-nginx" = { M = {
+        document     = { S = aws_ssm_document.restart_nginx.name }
+        documentHash = { S = aws_ssm_document.restart_nginx.hash }
+      } } } }
+      scenario     = { S = "nginx" }
+      severity     = { S = "HIGH" }
+      alarmNames   = { L = [{ S = aws_cloudwatch_metric_alarm.nginx.alarm_name }] }
+      alarmTitles  = { M = { (aws_cloudwatch_metric_alarm.nginx.alarm_name) = { S = "Nginx health check failing on the lab web server" } } }
+      labExpiresAt = { S = local.expires_at }
+      health       = { S = "UNKNOWN" }
     }
     regression = {
       resourceId        = { S = aws_lambda_function.regression.function_name }

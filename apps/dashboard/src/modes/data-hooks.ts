@@ -4,6 +4,7 @@ import type { DataSource } from '@/api/data-source';
 import type {
   AcknowledgeInput,
   Mode,
+  IncidentState,
   MutationGuard,
   RemediationDecisionInput,
   RemediationRequestInput,
@@ -43,7 +44,18 @@ export const queryKeys = {
 
 /** Live data is re-read every 30 s; Demo data changes only when the engine does. */
 const LIVE_POLL_MS = 30_000;
+/** While a recovery is in flight, Live incident views refresh every 10 s. */
+const LIVE_FAST_POLL_MS = 10_000;
 const poll = (mode: Mode) => (mode === 'live' ? LIVE_POLL_MS : false);
+const pollFor = (mode: Mode, fast: boolean) =>
+  mode === 'live' ? (fast ? LIVE_FAST_POLL_MS : LIVE_POLL_MS) : false;
+
+/** States in which the backend changes the incident without user input. */
+export const IN_FLIGHT_STATES: readonly IncidentState[] = [
+  'AWAITING_APPROVAL',
+  'REMEDIATING',
+  'VERIFYING',
+];
 
 export function useOverview() {
   const source = useDataSource();
@@ -77,14 +89,18 @@ export function useIncident(incidentId: string) {
   return useQuery({
     queryKey: queryKeys.incident(source.mode, incidentId),
     queryFn: () => source.getIncident(incidentId),
+    refetchInterval: (query) =>
+      pollFor(source.mode, IN_FLIGHT_STATES.includes(query.state.data?.data.state ?? 'OPEN')),
   });
 }
 
-export function useTimeline(incidentId: string) {
+/** `fast` while the incident is in flight (see IN_FLIGHT_STATES). */
+export function useTimeline(incidentId: string, fast = false) {
   const source = useDataSource();
   return useQuery({
     queryKey: queryKeys.timeline(source.mode, incidentId),
     queryFn: () => source.getTimeline(incidentId),
+    refetchInterval: pollFor(source.mode, fast),
   });
 }
 
@@ -96,11 +112,12 @@ export function useRunbooks() {
   });
 }
 
-export function useRemediations(incidentId?: string) {
+export function useRemediations(incidentId?: string, fast = false) {
   const source = useDataSource();
   return useQuery({
     queryKey: queryKeys.remediations(source.mode, incidentId),
     queryFn: () => source.listRemediations(incidentId),
+    refetchInterval: pollFor(source.mode, fast),
   });
 }
 

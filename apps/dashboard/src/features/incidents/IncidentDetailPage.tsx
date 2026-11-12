@@ -21,7 +21,9 @@ import {
 } from '@/components/ui/table';
 import { QueryBoundary } from '@/features/common/QueryBoundary';
 import { RecoveryProgress } from '@/features/recovery/RecoveryProgress';
+import { SelfApprovedNote } from '@/features/recovery/SelfApprovedNote';
 import {
+  IN_FLIGHT_STATES,
   useIncident,
   useRemediations,
   useResources,
@@ -147,8 +149,9 @@ function IncidentDetailContent({ incidentId }: { incidentId: string }) {
   const view = useView();
   const skip = useDemoSession((s) => s.nextStep);
   const incident = useIncident(incidentId);
-  const timeline = useTimeline(incidentId);
-  const remediations = useRemediations(incidentId);
+  const inFlight = IN_FLIGHT_STATES.includes(incident.data?.data.state ?? 'OPEN');
+  const timeline = useTimeline(incidentId, inFlight);
+  const remediations = useRemediations(incidentId, inFlight);
   const runbooks = useRunbooks();
   const resources = useResources();
 
@@ -233,6 +236,7 @@ function IncidentDetailContent({ incidentId }: { incidentId: string }) {
                       <span className="font-medium">Latest recovery request</span>
                       <MonoId className="text-muted-foreground">{latest.requestId}</MonoId>
                       <RunbookStateBadge state={latest.status} />
+                      {latest.selfApproved ? <SelfApprovedNote /> : null}
                     </div>
                     <RecoveryProgress request={latest} incident={data} />
                   </div>

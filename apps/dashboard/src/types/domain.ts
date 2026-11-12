@@ -89,6 +89,8 @@ export interface RemediationRequest {
   decidedAt?: string;
   completedAt?: string;
   expiresAt: string;
+  /** v1.8.0 (ADR-017): the approver is also the requester (allowed, always shown). */
+  selfApproved?: boolean;
 }
 
 /** v1.2.0: payload of GET /v1/overview (§4.2). */

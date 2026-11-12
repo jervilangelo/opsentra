@@ -46,6 +46,12 @@ variable "build_dir" {
   type = string
 }
 
+variable "coordinator_function" {
+  description = "The remediation coordinator the API may invoke (async) after an approval."
+  type        = object({ name = string, arn = string })
+  default     = null
+}
+
 variable "jwt_issuer" {
   type = string
 }
@@ -88,7 +94,7 @@ variable "throttle_rate" {
 
 variable "app_version" {
   type    = string
-  default = "0.5.0"
+  default = "0.6.0"
 }
 
 locals {
@@ -106,6 +112,12 @@ locals {
     "POST /v1/incidents/{incidentId}/investigate" = { protected = true }
     "POST /v1/incidents/{incidentId}/close"       = { protected = true }
     "GET /v1/audit"                               = { protected = true }
+
+    "POST /v1/incidents/{incidentId}/request-remediation" = { protected = true }
+    "POST /v1/remediations/{requestId}/decision"          = { protected = true }
+    "GET /v1/remediations"                                = { protected = true }
+    "GET /v1/remediations/{requestId}"                    = { protected = true }
+    "GET /v1/runbooks"                                    = { protected = true }
   }
 
   bundle = merge([
@@ -151,8 +163,8 @@ locals {
     }]
   }
 
-  # Least privilege: its own logs, and read-only access to named tables.
-  # No DynamoDB writes until Phase 5.
+  # Least privilege: its own logs, reads on named tables, conditional writes
+  # (never deletes) on the incident tables, and invoking only the coordinator.
   lambda_policy = {
     Version = "2012-10-17"
     Statement = concat(
@@ -173,6 +185,12 @@ locals {
         Effect   = "Allow"
         Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"]
         Resource = [for t in values(var.write_tables) : t.arn]
+      }],
+      var.coordinator_function == null ? [] : [{
+        Sid      = "InvokeCoordinatorOnly"
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = var.coordinator_function.arn
       }],
     )
   }
@@ -210,6 +228,8 @@ resource "aws_lambda_function" "api" {
       INCIDENTS_TABLE      = try(var.read_tables["incidents"].name, "")
       AUDIT_TABLE          = try(var.read_tables["audit"].name, "")
       CORRELATIONS_TABLE   = try(var.write_tables["correlations"].name, "")
+      REMEDIATIONS_TABLE   = try(var.write_tables["remediations"].name, "")
+      COORDINATOR_FUNCTION = try(var.coordinator_function.name, "")
     }
   }
 

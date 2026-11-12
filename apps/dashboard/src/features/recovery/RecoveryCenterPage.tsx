@@ -19,6 +19,8 @@ import { QueryBoundary } from '@/features/common/QueryBoundary';
 import { incidentPath } from '@/features/navigation/nav';
 import { useRemediations, useRunbooks } from '@/modes/data-hooks';
 
+import { SelfApprovedNote } from './SelfApprovedNote';
+
 function RunbookCatalog() {
   const runbooks = useRunbooks();
   return (
@@ -125,6 +127,12 @@ function RecoveryHistory() {
                       </TableCell>
                       <TableCell className="text-xs">
                         {r.requestedBy} / {r.approvedBy ?? '—'}
+                        {r.selfApproved ? (
+                          <>
+                            {' '}
+                            <SelfApprovedNote />
+                          </>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <Timestamp value={r.requestedAt} />

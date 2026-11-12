@@ -42,13 +42,18 @@ module "api" {
   jwt_audience       = module.auth.client_ids
   cors_allow_origins = var.frontend_origins
   read_tables = {
-    for k in ["resources", "incidents", "audit"] :
+    for k in ["resources", "incidents", "audit", "remediations"] :
     k => { name = module.tables.table_names[k], arn = module.tables.table_arns[k] }
   }
   write_tables = {
     incidents    = { name = module.tables.table_names["incidents"], arn = module.tables.table_arns["incidents"] }
     audit        = { name = module.tables.table_names["audit"], arn = module.tables.table_arns["audit"] }
     correlations = { name = module.tables.table_names["active-correlations"], arn = module.tables.table_arns["active-correlations"] }
+    remediations = { name = module.tables.table_names["remediations"], arn = module.tables.table_arns["remediations"] }
+  }
+  coordinator_function = {
+    name = module.incidents.coordinator_function_name
+    arn  = module.incidents.coordinator_function_arn
   }
 }
 
@@ -65,6 +70,7 @@ module "incidents" {
     audit        = { name = module.tables.table_names["audit"], arn = module.tables.table_arns["audit"] }
     correlations = { name = module.tables.table_names["active-correlations"], arn = module.tables.table_arns["active-correlations"] }
     resources    = { name = module.tables.table_names["resources"], arn = module.tables.table_arns["resources"] }
+    remediations = { name = module.tables.table_names["remediations"], arn = module.tables.table_arns["remediations"] }
   }
 }
 

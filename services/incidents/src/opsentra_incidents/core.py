@@ -7,6 +7,7 @@ Tables (names from the environment):
   audit                PK INCIDENT#<id> | EVENT#<eventId> | IDEMPOTENCY#<key>, SK
   active-correlations  PK correlationKey; activeIncidentId while active,
                        lastResolvedAt after a verified resolution
+  remediations         PK requestId (Phase 6, see remediation.py)
 
 Invariants enforced with conditional writes and transactions:
   * exactly one active incident per correlation key;
@@ -32,7 +33,8 @@ ACTIVE = ("OPEN", "ACKNOWLEDGED", "INVESTIGATING", "AWAITING_APPROVAL", "REMEDIA
 SELF_HEALABLE = ("OPEN", "ACKNOWLEDGED", "INVESTIGATING", "ESCALATED")
 ROLE_RANK = {"VIEWER": 0, "OPERATOR": 1, "ADMIN": 2}
 
-# User commands (subset of apps/dashboard/src/domain/incident-machine.ts; Phase 6 adds remediation).
+# User commands (subset of apps/dashboard/src/domain/incident-machine.ts; remediation
+# commands live in remediation.py).
 USER_TRANSITIONS: dict[str, tuple[tuple[str, ...], str, str, str]] = {
     # command: (from states, to state, minimum role, audit action)
     "acknowledge": (("OPEN",), "ACKNOWLEDGED", "OPERATOR", "INCIDENT_ACKNOWLEDGED"),
@@ -57,6 +59,7 @@ class Tables:
     audit: str
     correlations: str
     resources: str
+    remediations: str = ""
 
     @staticmethod
     def from_env() -> Tables:
@@ -66,6 +69,7 @@ class Tables:
             audit=e.get("AUDIT_TABLE", ""),
             correlations=e.get("CORRELATIONS_TABLE", ""),
             resources=e.get("RESOURCES_TABLE", ""),
+            remediations=e.get("REMEDIATIONS_TABLE", ""),
         )
 
 
@@ -123,6 +127,17 @@ def _is(err: Exception, code: str) -> bool:
     return resp.get("Error", {}).get("Code") == code
 
 
+_last_seq = 0
+
+
+def _next_seq() -> int:
+    """Strictly increasing within a process, even when the clock repeats a value
+    (Windows time_ns resolution), so items written together keep their order."""
+    global _last_seq
+    _last_seq = max(time.time_ns(), _last_seq + 1)
+    return _last_seq
+
+
 # ---------------------------------------------------------------- store ---
 
 
@@ -172,18 +187,19 @@ class Store:
         detail: Mapping[str, Any] | None = None,
         outcome: str = "SUCCESS",
         target_type: str = "INCIDENT",
+        target_id: str | None = None,
     ) -> dict[str, Any]:
         item = {
             "PK": f"INCIDENT#{incident_id}",
             # Monotonic within the same second, unique across writers.
-            "SK": f"{at}#{time.time_ns():020d}{secrets.token_hex(3)}",
+            "SK": f"{at}#{_next_seq():020d}{secrets.token_hex(3)}",
             "occurredAt": at,
             "eventType": event_type,
             "action": event_type,
             "actorType": "USER" if actor_id else "SYSTEM",
             "actorId": actor_id,
             "targetType": target_type,
-            "targetId": incident_id,
+            "targetId": target_id or incident_id,
             "correlationId": correlation_id,
             "previousState": previous,
             "newState": new,
@@ -372,6 +388,12 @@ def resolve_verified(store: Store, incident: Mapping[str, Any], verified_at: str
         return False
     if parse_iso(verified_at) < parse_iso(cleared) + SELF_HEAL_DELAY:
         return False
+    return resolve(store, incident, verified_at, {"check": "independent HTTP probe", "afterClear": cleared})
+
+
+def resolve(store: Store, incident: Mapping[str, Any], verified_at: str, evidence: Mapping[str, Any]) -> bool:
+    """RESOLVED after independent verification (the caller decides what counts as
+    verified). Clears the active correlation and keeps lastResolvedAt."""
     now = now_iso()
     iid, corr, prev = incident["incidentId"], incident["correlationKey"], incident["state"]
     try:
@@ -405,13 +427,7 @@ def resolve_verified(store: Store, incident: Mapping[str, Any], verified_at: str
                         "ExpressionAttributeValues": {":n": {"S": now}, ":id": {"S": iid}},
                     }
                 },
-                store.audit_put(
-                    iid,
-                    verified_at,
-                    "HEALTH_VERIFIED",
-                    correlation_id=corr,
-                    detail={"check": "independent HTTP probe", "afterClear": cleared},
-                ),
+                store.audit_put(iid, verified_at, "HEALTH_VERIFIED", correlation_id=corr, detail=dict(evidence)),
                 store.audit_put(iid, now, "INCIDENT_RESOLVED", correlation_id=corr, previous=prev, new="RESOLVED"),
             ]
         )
@@ -427,6 +443,78 @@ def resolve_verified(store: Store, incident: Mapping[str, Any], verified_at: str
 
 def _fingerprint(command: str, incident_id: str, body: Mapping[str, Any]) -> str:
     return json.dumps([command, incident_id, dict(body)], sort_keys=True)
+
+
+def check_idempotency_key(key: str | None) -> str:
+    if not key or len(key) > 128:
+        raise IncidentError(400, "IDEMPOTENCY_KEY_REQUIRED", "An Idempotency-Key header is required.")
+    return key
+
+
+def check_version(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise IncidentError(400, "VALIDATION", "expectedVersion must be a positive integer.")
+    return value
+
+
+def replayed(store: Store, key: str, fingerprint: str) -> dict[str, Any] | None:
+    """The stored response for a repeated request, or None for a new key."""
+    seen = store.get(store.t.audit, {"PK": f"IDEMPOTENCY#{key}", "SK": "IDEMPOTENCY"})
+    if not seen:
+        return None
+    if seen.get("fingerprint") != fingerprint:
+        raise IncidentError(409, "IDEMPOTENCY_KEY_REUSED", "This Idempotency-Key was used for another request.")
+    return json.loads(seen["response"])
+
+
+def remember(store: Store, key: str, fingerprint: str, response: Mapping[str, Any]) -> None:
+    try:
+        store.c.put_item(
+            TableName=store.t.audit,
+            Item=ser_item(
+                {
+                    "PK": f"IDEMPOTENCY#{key}",
+                    "SK": "IDEMPOTENCY",
+                    "fingerprint": fingerprint,
+                    "response": json.dumps(response, default=str),
+                    "ttl": int(_ttl(IDEMPOTENCY_TTL_HOURS / 24)),
+                }
+            ),
+            ConditionExpression="attribute_not_exists(PK)",
+        )
+    except Exception as err:
+        if not _is(err, "ConditionalCheckFailedException"):
+            raise
+
+
+def record_denied(
+    store: Store,
+    *,
+    incident_id: str,
+    action: str,
+    actor: str,
+    role: str,
+    code: str,
+    target_type: str = "INCIDENT",
+    target_id: str | None = None,
+) -> None:
+    """Appends a DENIED audit item for a refused privileged command (§5.2). Only
+    for incidents that exist, so made-up IDs cannot create audit partitions."""
+    incident = store.incident(incident_id)
+    if not incident:
+        return
+    put = store.audit_put(
+        incident_id,
+        now_iso(),
+        f"{action}_DENIED",
+        correlation_id=str(incident.get("correlationKey", "")),
+        actor_id=actor,
+        outcome="DENIED",
+        target_type=target_type,
+        target_id=target_id,
+        detail={"role": role, "code": code},
+    )["Put"]
+    store.c.put_item(**put)
 
 
 def user_transition(
@@ -446,20 +534,16 @@ def user_transition(
     sources, target, min_role, action = USER_TRANSITIONS[command]
     if ROLE_RANK.get(role, -1) < ROLE_RANK[min_role]:
         raise IncidentError(403, "FORBIDDEN", f"This needs the {min_role.lower()} role.")
-    if not idempotency_key or len(idempotency_key) > 128:
-        raise IncidentError(400, "IDEMPOTENCY_KEY_REQUIRED", "An Idempotency-Key header is required.")
-    if not isinstance(expected_version, int) or isinstance(expected_version, bool) or expected_version < 1:
-        raise IncidentError(400, "VALIDATION", "expectedVersion must be a positive integer.")
+    idempotency_key = check_idempotency_key(idempotency_key)
+    expected_version = check_version(expected_version)
     clean_reason = (reason or "").strip()[:280]
     if command == "acknowledge" and not clean_reason:
         raise IncidentError(400, "VALIDATION", "A reason is required.")
 
     fp = _fingerprint(command, incident_id, {"expectedVersion": expected_version, "reason": clean_reason})
-    seen = store.get(store.t.audit, {"PK": f"IDEMPOTENCY#{idempotency_key}", "SK": "IDEMPOTENCY"})
-    if seen:
-        if seen.get("fingerprint") != fp:
-            raise IncidentError(409, "IDEMPOTENCY_KEY_REUSED", "This Idempotency-Key was used for another request.")
-        return json.loads(seen["response"])
+    previous = replayed(store, idempotency_key, fp)
+    if previous is not None:
+        return previous
 
     incident = store.incident(incident_id)
     if not incident:
@@ -513,21 +597,5 @@ def user_transition(
 
     updated = store.incident(incident_id) or {}
     response = {"status": 200, "incident": updated}
-    try:
-        store.c.put_item(
-            TableName=store.t.audit,
-            Item=ser_item(
-                {
-                    "PK": f"IDEMPOTENCY#{idempotency_key}",
-                    "SK": "IDEMPOTENCY",
-                    "fingerprint": fp,
-                    "response": json.dumps(response, default=str),
-                    "ttl": int(_ttl(IDEMPOTENCY_TTL_HOURS / 24)),
-                }
-            ),
-            ConditionExpression="attribute_not_exists(PK)",
-        )
-    except Exception as err:
-        if not _is(err, "ConditionalCheckFailedException"):
-            raise
+    remember(store, idempotency_key, fp, response)
     return response

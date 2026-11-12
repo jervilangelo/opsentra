@@ -1,5 +1,4 @@
 import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog';
-import { PlannedPanel } from '@/components/feedback/states';
 import { Button } from '@/components/ui/button';
 import { ROLE_LABEL } from '@/types/display';
 import type { Incident, RemediationRequest, Runbook } from '@/types/domain';
@@ -24,19 +23,8 @@ export function IncidentActions({
   runbooks,
   pendingRequest,
 }: IncidentActionsProps) {
-  const {
-    role,
-    open,
-    error,
-    runbookId,
-    setRunbookId,
-    allowed,
-    begin,
-    cancel,
-    submit,
-    available,
-    remediationPlannedInLive,
-  } = useIncidentCommands(incident, runbooks, pendingRequest);
+  const { role, open, error, runbookId, setRunbookId, allowed, begin, cancel, submit, available } =
+    useIncidentCommands(incident, runbooks, pendingRequest);
   const setOpen = (o: CommandKind | undefined) => (o ? begin(o) : cancel());
   const runbook = runbooks.find((r) => r.id === runbookId);
   const pendingRunbook = pendingRequest
@@ -52,14 +40,7 @@ export function IncidentActions({
     close: 'Close incident',
   };
 
-  const planned = remediationPlannedInLive ? (
-    <PlannedPanel phase="Phase 6" title="Approved recovery in Live AWS Mode">
-      Requesting and approving a runbook against real lab resources arrives in Phase 6.
-    </PlannedPanel>
-  ) : null;
-
   if (available.length === 0) {
-    if (planned) return planned;
     const waiting =
       incident.state === 'REMEDIATING' || incident.state === 'VERIFYING'
         ? 'The system is working. No action is needed until it reports back.'
@@ -69,7 +50,6 @@ export function IncidentActions({
 
   return (
     <div className="flex flex-col gap-3">
-      {planned}
       <div className="flex flex-wrap gap-2">
         {available.map((k) => {
           const can = allowed(k);

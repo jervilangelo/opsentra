@@ -182,3 +182,39 @@ def test_probe_never_follows_redirects(base_url: str) -> None:
 def test_probe_handles_unreachable_and_bad_scheme() -> None:
     assert h.probe("http://127.0.0.1:1/health", "x", 0.5)[0] is False
     assert h.probe("file:///etc/passwd", "x", 0.5) == (False, "invalid target")
+
+
+def test_healthy_streak_counts_consecutive_probes_and_resets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ADR-017: remediation needs 3 consecutive HEALTHY probes after the fix."""
+    import boto3
+    from moto import mock_aws
+
+    for k, v in {
+        "AWS_ACCESS_KEY_ID": "t",
+        "AWS_SECRET_ACCESS_KEY": "t",
+        "AWS_DEFAULT_REGION": "ap-southeast-1",
+    }.items():
+        monkeypatch.setenv(k, v)
+    with mock_aws():
+        ddb = boto3.client("dynamodb", region_name="ap-southeast-1")
+        ddb.create_table(
+            TableName=CFG.resources_table,
+            BillingMode="PAY_PER_REQUEST",
+            AttributeDefinitions=[{"AttributeName": "resourceId", "AttributeType": "S"}],
+            KeySchema=[{"AttributeName": "resourceId", "KeyType": "HASH"}],
+        )
+        ddb.put_item(TableName=CFG.resources_table, Item={"resourceId": {"S": CFG.instance_id}})
+        c = Clients(Rec())
+        c.dynamodb = ddb
+
+        def probe(health: str, at: str) -> tuple[int, str | None]:
+            h.update_registry(c, CFG, health, "running", at, verified=False)  # type: ignore[arg-type]
+            item = ddb.get_item(TableName=CFG.resources_table, Key={"resourceId": {"S": CFG.instance_id}})["Item"]
+            return int(item["healthyStreak"]["N"]), item.get("healthyStreakSince", {}).get("S")
+
+        assert probe("HEALTHY", "2026-11-12T06:00:00Z") == (1, "2026-11-12T06:00:00Z")
+        assert probe("HEALTHY", "2026-11-12T06:01:00Z") == (2, "2026-11-12T06:00:00Z")
+        assert probe("UNHEALTHY", "2026-11-12T06:02:00Z") == (0, None)
+        assert probe("HEALTHY", "2026-11-12T06:03:00Z") == (1, "2026-11-12T06:03:00Z")
+        assert probe("HEALTHY", "2026-11-12T06:04:00Z") == (2, "2026-11-12T06:03:00Z")
+        assert probe("HEALTHY", "2026-11-12T06:05:00Z") == (3, "2026-11-12T06:03:00Z")

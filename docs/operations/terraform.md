@@ -135,7 +135,16 @@ On Git Bash, set `MSYS_NO_PATHCONV=1` for AWS CLI arguments that start with `/`.
   The reconciler repairs missed ALARM and OK events within 5 minutes, so a DLQ entry is evidence to read, not something to replay by hand.
 - **Ingest test events** (gate test only, approval required): `aws lambda invoke --function-name opsentra-dev-incident-ingest --payload fileb://event.json out.json`.
 
-## 7. Teardown (control plane)
+## 7. Remediation (Phase 6)
+
+- **Flow:** Operator requests "Restart Nginx" in the UI, an Administrator approves (the same admin may do both; it is shown as self-approved), the coordinator runs `Opsentra-Lab-RestartNginx` once, and the incident resolves only after 3 consecutive healthy probes.
+- **Status of a run:** `GET /v1/remediations/{requestId}` (or the Recovery Center). Raw SSM detail, read-only:
+  `aws ssm list-commands --filters key=DocumentName,value=Opsentra-Lab-RestartNginx --query "Commands[].[CommandId,Status,RequestedDateTime]"`
+- **Escalated incident:** do not retry blindly (§12). Read the timeline (`REMEDIATION_FAILED`, `VERIFICATION_FAILED`), check the probe and the SSM output, then request again from the UI if a restart is still the right fix.
+- **Coordinator DLQ:** `opsentra-dev-remediation-coordinator-dlq`. The reconciler already fails or dispatches stuck requests, so treat DLQ messages as evidence, not as work to replay.
+- **Runbook changed?** The registry pins the document hash. After changing the SSM document, re-apply the lab so the registry gets the new hash; until then SSM refuses the old hash and the request fails safely.
+
+## 8. Teardown (control plane)
 
 ```bash
 cd infrastructure/environments/control-plane-dev

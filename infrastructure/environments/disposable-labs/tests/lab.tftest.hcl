@@ -27,6 +27,9 @@ mock_provider "aws" {
   mock_resource "aws_cloudwatch_event_rule" {
     defaults = { arn = "arn:aws:events:ap-southeast-1:111122223333:rule/opsentra-lab-alarm-state" }
   }
+  mock_resource "aws_ssm_document" {
+    defaults = { hash = "0000000000000000000000000000000000000000000000000000000000000000" }
+  }
   mock_resource "aws_lambda_alias" {
     defaults = { arn = "arn:aws:lambda:ap-southeast-1:111122223333:function:mock:live" }
   }
@@ -40,6 +43,9 @@ override_data {
       table_arns           = { resources = "arn:aws:dynamodb:ap-southeast-1:111122223333:table/opsentra-dev-resources" }
       ingest_function_arn  = "arn:aws:lambda:ap-southeast-1:111122223333:function:opsentra-dev-incident-ingest"
       ingest_function_name = "opsentra-dev-incident-ingest"
+
+      coordinator_function_arn  = "arn:aws:lambda:ap-southeast-1:111122223333:function:opsentra-dev-remediation-coordinator"
+      coordinator_function_name = "opsentra-dev-remediation-coordinator"
     }
   }
 }
@@ -185,4 +191,29 @@ run "only_small_instances" {
   }
 
   expect_failures = [var.instance_type]
+}
+
+run "runbook_status_and_pinned_runbook" {
+  command = apply # mocked: nothing is created
+
+  variables {
+    lab_expires_at = timeadd(timestamp(), "2h")
+  }
+
+  assert {
+    condition     = jsondecode(aws_cloudwatch_event_rule.runbook_status.event_pattern).detail["document-name"] == ["Opsentra-Lab-RestartNginx"]
+    error_message = "The coordinator hears only about the lab's restart runbook."
+  }
+  assert {
+    condition     = aws_lambda_permission.events_to_coordinator.source_arn == aws_cloudwatch_event_rule.runbook_status.arn
+    error_message = "Only the runbook status rule may invoke the coordinator."
+  }
+  assert {
+    condition     = jsondecode(aws_dynamodb_table_item.registry["web"].item).runbooks.M["rb-restart-nginx"].M.documentHash.S == aws_ssm_document.restart_nginx.hash
+    error_message = "The registry pins the runbook to the document's hash."
+  }
+  assert {
+    condition     = !can(jsondecode(aws_dynamodb_table_item.registry["regression"].item).runbooks)
+    error_message = "No live runbook is registered for the regression function yet."
+  }
 }

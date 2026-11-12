@@ -249,3 +249,34 @@ resource "aws_cloudwatch_log_resource_policy" "events_to_logs" {
     }]
   })
 }
+
+# ------------------------------------------ SSM runbook status -> coordinator ---
+# Command status changes for the lab's own documents only (ADR-017).
+
+resource "aws_cloudwatch_event_rule" "runbook_status" {
+  name        = "${local.name}-runbook-status"
+  description = "SSM command status changes for Opsentra lab runbooks."
+  event_pattern = jsonencode({
+    source        = ["aws.ssm"]
+    "detail-type" = ["EC2 Command Status-change Notification"]
+    detail        = { "document-name" = [aws_ssm_document.restart_nginx.name] }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "runbook_status" {
+  rule = aws_cloudwatch_event_rule.runbook_status.name
+  arn  = local.coordinator_function_arn
+
+  retry_policy {
+    maximum_retry_attempts       = 4
+    maximum_event_age_in_seconds = 3600
+  }
+}
+
+resource "aws_lambda_permission" "events_to_coordinator" {
+  statement_id  = "AllowLabRunbookStatusRule"
+  action        = "lambda:InvokeFunction"
+  function_name = local.coordinator_function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.runbook_status.arn # only this rule
+}

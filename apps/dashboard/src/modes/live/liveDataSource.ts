@@ -100,8 +100,9 @@ export const liveDataSource: DataSource = {
   listIncidents: () => get('/v1/incidents'),
   getIncident: (id) => get(`/v1/incidents/${enc(id)}`),
   getTimeline: (id) => get(`/v1/incidents/${enc(id)}/timeline`),
-  listRunbooks: later('Phase 6'),
-  listRemediations: later('Phase 6'),
+  listRunbooks: () => get('/v1/runbooks'),
+  listRemediations: (incidentId) =>
+    get(`/v1/remediations${incidentId ? `?incidentId=${enc(incidentId)}` : ''}`),
   getAnalytics: later('Phase 8'),
   listAudit: () => get('/v1/audit'),
   listLabs: later('Phase 7'),
@@ -117,8 +118,28 @@ export const liveDataSource: DataSource = {
       body: { expectedVersion: input.expectedVersion },
       idempotencyKey: input.idempotencyKey,
     }),
-  requestRemediation: later('Phase 6'),
-  decideRemediation: later('Phase 6'),
+  // Only a runbook ID is sent: the backend resolves the resource, instance and
+  // document from its own allowlist (ADR-017).
+  requestRemediation: (id, input) =>
+    get(`/v1/incidents/${enc(id)}/request-remediation`, {
+      method: 'POST',
+      body: {
+        expectedVersion: input.expectedVersion,
+        runbookId: input.runbookId,
+        reason: input.reason,
+      },
+      idempotencyKey: input.idempotencyKey,
+    }),
+  decideRemediation: (requestId, input) =>
+    get(`/v1/remediations/${enc(requestId)}/decision`, {
+      method: 'POST',
+      body: {
+        expectedVersion: input.expectedVersion,
+        decision: input.decision,
+        reason: input.reason,
+      },
+      idempotencyKey: input.idempotencyKey,
+    }),
   closeIncident: (id, input) =>
     get(`/v1/incidents/${enc(id)}/close`, {
       method: 'POST',

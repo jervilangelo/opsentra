@@ -11,7 +11,7 @@
 | CKV_AWS_338 | 1-year log retention | 14 days by design, to keep cost low (§3.3) | Audit needs longer retention |
 | CKV_AWS_28 | DynamoDB point-in-time recovery | Off in dev; PITR is cost-reviewed later (§12.3) | Data worth restoring exists |
 | CKV_AWS_117 | Lambda inside a VPC | Blueprint §3.2: no VPC/NAT for Lambdas that only call public AWS endpoints | The Lambda must reach private resources |
-| CKV_AWS_116 | Lambda dead-letter queue | The API is invoked synchronously; a DLQ applies only to async invokes | An async consumer is added (Phase 5 ingest has its own) |
+| CKV_AWS_116 | Lambda dead-letter queue | The API is invoked synchronously; a DLQ applies only to async invokes. The reconciler is scheduled, and a failed run is repeated by the next one | An async consumer is added (the Phase 5 ingest and Phase 6 coordinator have their own DLQs) |
 | CKV_AWS_115 | Lambda reserved concurrency | New accounts may have a 10-concurrency limit; API Gateway throttling caps load | The account limit is raised |
 | CKV_AWS_50 | X-Ray tracing | Optional after MVP (§3.3) | Phase 8 observability |
 | CKV_AWS_272 | Lambda code signing | Deferred; deploys are owner-run from reviewed commits | A CI deploy pipeline exists |
