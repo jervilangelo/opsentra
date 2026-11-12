@@ -1,7 +1,7 @@
 # Phase 5 checkpoint: Incident detection, management and audit
 
 - **Branch:** `feat/incidents`
-- **Status:** **Gate test passed (2026-11-12)**, awaiting the owner's gate review (§7.1). Control plane deployed; lab deployed for the test and destroyed (teardown verified).
+- **Status:** **Complete.** Gate passed live and approved by the owner on 2026-11-12. Control plane deployed; lab deployed for the test and destroyed (teardown verified).
 
 ## Gate (blueprint §7, Phase 5)
 

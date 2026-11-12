@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.7.0 (Phases 1–4 complete; Phase 5 in progress)  
+> **Version:** 1.7.1 (Phases 1–5 complete; Phase 6 next)  
 > **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–4 complete (gates passed 2026-11-12). The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests. Phase 5 in progress.  
@@ -506,7 +506,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Persist, deduplicate, and explain cloud incidents.
 
-**Status (2026-11-12):** code and tests written (ADR-016); deployment and the live gate test pending: see `docs/phases/phase-5-checkpoint.md`.
+**Status (2026-11-12):** complete. Gate passed live and approved by the owner: see `docs/phases/phase-5-checkpoint.md`.
 
 **Work:** ingest CloudWatch state change events; schema/source validation; correlation locks and idempotent conditional writes; status machine, acknowledge/assign flows; timeline and audit; SNS event alert with suppression; pagination/filter; alarm reconciler and missing-event repair; no automatic false resolution on event timeout.
 
@@ -879,13 +879,13 @@ These links support design decisions and should be rechecked for new AWS service
 
 ### Incident engineering
 - [x] Health probe + custom metric + CloudWatch alarm
-- [ ] EventBridge routing and ingestion (routing done in Phase 4; ingestion is Phase 5)
-- [ ] Idempotent active incident correlation
-- [ ] Incident lifecycle, timelines and audit trail
-- [ ] Email notifications with suppression
+- [x] EventBridge routing and ingestion (Phase 4 routing, Phase 5 ingest; ADR-016)
+- [x] Idempotent active incident correlation (live gate: duplicate, delayed, out-of-order and malformed events)
+- [x] Incident lifecycle, timelines and audit trail (user actions are audited; denied attempts are not audited in Live yet)
+- [ ] Email notifications with suppression (one SNS publish per incident verified live; email delivery awaits the owner confirming the subscription)
 - [ ] Fixed runbook request/approval/execution guardrails
 - [ ] Post-action service health verification
-- [ ] Failed-recovery escalation / reconciliation logic
+- [ ] Failed-recovery escalation / reconciliation logic (reconciliation and verified self-heal done in Phase 5; escalation is Phase 6)
 - [ ] Safe Simulation Lab operations + cleanup watchdog
 
 ### Validation and release
@@ -912,5 +912,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.6.0 | 2026-11-12 | ADR-015: Phase 4 lab (own VPC, self-terminating EC2/Nginx, probe + metric + alarm, EventBridge → Logs, registry), JWT read routes, Cognito PKCE Live adapter; §9.3 adds `VITE_COGNITO_DOMAIN`. |
 | 1.6.1 | 2026-11-12 | Phases 3 and 4 gates passed and approved by the owner; §16 checklist updated with verified items only. |
 | 1.7.0 | 2026-11-12 | ADR-016: incident pipeline (ingest, correlation, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS alerts, DLQ); §4.3 schema additions; incident write routes and `GET /v1/audit` implemented. |
+| 1.7.1 | 2026-11-12 | Phase 5 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–4 COMPLETE; Phase 5 in progress; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phase 6 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

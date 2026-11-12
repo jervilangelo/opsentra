@@ -1,6 +1,8 @@
 # Architecture overview
 
-This page describes what exists **now** (Phases 1–2: frontend and Demo Mode only) and links to the planned system in the [master blueprint §3](../../OPSENTRA_MASTER_BLUEPRINT.md#3-architecture-and-boundaries). None of the AWS components are deployed.
+This page links to the planned system in the [master blueprint §3](../../OPSENTRA_MASTER_BLUEPRINT.md#3-architecture-and-boundaries) and describes the frontend as built.
+
+**Built and deployed (Phases 3–5):** Cognito, the HTTP API with JWT roles, Lambda handlers and DynamoDB (ADR-014); the disposable EC2/Nginx lab with its probe, metric, alarm and EventBridge rule (ADR-015); and the incident path (EventBridge → ingest Lambda → DynamoDB, a 5-minute reconciler, SNS email; ADR-016). **Not built yet:** the approved action coordinator and Systems Manager runbooks (Phase 6).
 
 ## Planned system (blueprint §3.1)
 

@@ -6,7 +6,7 @@ Opsentra is a UI-first AWS cloud operations and incident response platform. It i
 
 ## Current phase
 
-**Phase 5: Incident detection, management and audit** (blueprint §7). Phases 1–4 passed their gates on 2026-11-12: foundation, Demo Mode with Easy/Advanced views, the AWS control plane, and live monitoring with the disposable Nginx lab. The control plane stays deployed; the lab is destroyed between tests. Open items: Phase 3/4 cost check once billing catches up, and the control-plane destroy test (deferred by the owner).
+**Phase 6: Controlled automated remediation** (blueprint §7). Phases 1–5 passed their gates on 2026-11-12: foundation, Demo Mode with Easy/Advanced views, the AWS control plane, live monitoring with the disposable Nginx lab, and incident detection, management and audit (ADR-016). The control plane stays deployed; the lab is destroyed between tests. Open items: Phase 3/4 cost check once billing catches up, and the control-plane destroy test (deferred by the owner).
 
 Update this line when a phase gate passes. Do not start the next phase until the current gate checklist (§7.1) is reviewed with the owner.
 

@@ -11,14 +11,14 @@
 A UI-first cloud operations and incident response platform for AWS infrastructure.
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-FBBF24?style=flat-square)
-![Phase 5 of 10](https://img.shields.io/badge/phase-5%20of%2010-38BDF8?style=flat-square)
+![Phase 6 of 10](https://img.shields.io/badge/phase-6%20of%2010-38BDF8?style=flat-square)
 ![AWS](https://img.shields.io/badge/cloud-AWS-0B1220?style=flat-square)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-0B1220?style=flat-square)
 
 </div>
 
 > [!WARNING]
-> **Opsentra is a work in progress.** The project is in **Phase 5: incident detection, management and audit**. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4). Incidents in Live mode, approved remediation and the Live Simulation Lab are **not built yet**; Live pages for them say so. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
+> **Opsentra is a work in progress.** The project is in **Phase 6: controlled automated remediation**. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4), and **live incidents** (Phase 5): alarm events become deduplicated incidents with one email alert, operators acknowledge and investigate from the dashboard, every change is in an append-only audit trail, and an incident resolves only after an independent health check passes. Approved remediation and the Live Simulation Lab are **not built yet**; Live pages for them say so. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
 
 ---
 
@@ -130,8 +130,8 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 | 2 | Fully interactive Demo Mode | ✅ Complete |
 | 3 | AWS infrastructure foundation (Terraform, Cognito, API, DynamoDB) | ✅ Complete |
 | 4 | Real AWS monitoring and inventory | ✅ Complete |
-| 5 | Incident detection, management and audit | 🟡 **In progress** |
-| 6 | Controlled automated remediation | ⚪ Planned |
+| 5 | Incident detection, management and audit | ✅ Complete |
+| 6 | Controlled automated remediation | 🟡 **In progress** |
 | 7 | Live Simulation Lab and guardrails | ⚪ Planned |
 | 8 | Analytics, reporting and observability | ⚪ Planned |
 | 9 | Security hardening, testing and optimization | ⚪ Planned |
@@ -146,7 +146,8 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 - [x] Easy and Advanced views: plain-language Easy view by default, full Advanced view one click away
 - [x] AWS control plane (Phase 3): Terraform state, Cognito, HTTP API with JWT roles, DynamoDB, CI checks; deployed
 - [x] Live monitoring (Phase 4): disposable Nginx lab, probe, alarm, events, Live dashboard sign-in
-- [ ] Incidents, approved remediation and live lab scenarios (Phases 5–7)
+- [x] Live incidents (Phase 5): validated, deduplicated ingest, email alert, operator actions, audit trail, verified self-heal
+- [ ] Approved remediation and live lab scenarios (Phases 6–7)
 
 ---
 
@@ -160,7 +161,9 @@ opsentra/
 ├── .github/                       # frontend CI, PR template
 ├── apps/dashboard/                # React + Vite + TypeScript dashboard
 ├── infrastructure/                # Terraform: state bootstrap, control plane, modules
-├── services/api/                  # Python 3.12 Lambda API (/v1/health, /v1/me)
+├── services/api/                  # Python 3.12 Lambda API (/v1 reads, incident actions, audit)
+├── services/health-check/         # independent HTTP probe for the lab
+├── services/incidents/            # incident ingest and reconciler Lambdas
 ├── scripts/bootstrap/             # one-off helper scripts
 ├── brand/                         # logo system, favicons, brand guidelines
 └── docs/                          # ADRs, architecture overview, phase checkpoints
