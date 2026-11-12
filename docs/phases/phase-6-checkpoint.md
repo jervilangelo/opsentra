@@ -1,7 +1,7 @@
 # Phase 6 checkpoint: Controlled automated remediation
 
 - **Branch:** `feat/remediation`
-- **Status:** **In progress.** Code and tests pass locally. Deployment and the live gate test are pending owner approval.
+- **Status:** **In progress.** Control plane deployed; first live gate run on 2026-11-12 found two bugs (see below and `HANDOFF.md`). Lab destroyed, teardown verified.
 
 ## Gate (blueprint §7, Phase 6)
 
@@ -23,3 +23,35 @@
 | Dashboard E2E | 37 passed |
 | `terraform test` | control-plane 11/11, disposable-labs 7/7 |
 | checkov | 191 passed, 0 failed |
+
+## Live run 1 (2026-11-12, UTC)
+
+| Time | Step |
+|---|---|
+| 08:34 | Control plane (11 added, 7 changed) and lab (41) applied; registry carries the hash-pinned runbook; probe streak counting |
+| 08:35:32 | `Opsentra-Lab-StopNginx`; incident `INC-20261112-1838F3` opened 08:38:27 |
+| 08:39–08:41 | Operator, in the Live UI: acknowledge, investigate, request "Restart Nginx" (`REQ-20261112-E3312F`) |
+| 08:41:39–08:42:01 | Attacks via the API: all refused and audited (table below) |
+| 08:42:13 | Admin approved in the Live UI; coordinator sent **one** SSM command at 08:42:18 |
+| 08:42:24 | SSM `Success`; request SUCCEEDED; incident **VERIFYING** (not resolved) |
+| 08:42:25 | Replay: decision re-sent → 409; two coordinator re-invokes → `skipped`; SSM shows one command for this request |
+| 08:42–08:58 | Probe HEALTHY with an unbroken streak, but verification never passed (bug 2) and escalation failed (bug 1) |
+| 08:58:12 | Lab destroyed (41); teardown verified |
+
+| Attack | Result |
+|---|---|
+| No token: decision | 401 |
+| Viewer / operator decision; operator with `role: ADMIN` in body | 403 FORBIDDEN (audited) |
+| Viewer request | 403 (audited) |
+| Forged runbook IDs (`AWS-RunShellScript`, `rb-restart-nginx; reboot`, `Opsentra-Lab-StopNginx`, `../../x`) | 400 VALIDATION, no write |
+| Second request while pending, with `resourceId`/`document` in body | 409 INVALID_STATE (audited) |
+| Unknown request ID | 404 |
+| Stale `expectedVersion` | 409 VERSION_CONFLICT (audited) |
+| Burst of calls | 429 from the stage rate limit |
+
+### Bugs found
+
+1. Escalation updates combine `SET … , REMOVE …` in one clause; DynamoDB rejects it (moto did not). The reconciler errors every 2 minutes on the stuck incident.
+2. Verification requires the healthy streak to start after `completedAt`; live, it started 1 s before, so a real recovery could never verify.
+
+Both are fixed first in the next session, then the run is repeated.
