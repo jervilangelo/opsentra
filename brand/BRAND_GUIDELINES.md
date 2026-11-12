@@ -183,8 +183,8 @@ Do not:
 :root {                                  /* light */
   --background: 210 40% 98%;             /* #F8FAFC Cloud */
   --foreground: 220 49% 8%;              /* #0B1220 Ops Navy */
-  --primary: 200 98% 39%;                /* #0284C7 Signal Deep */
-  --ring: 200 98% 39%;
+  --primary: 201 96% 32%;                /* #0369A1 Signal Ink (ADR-011: white text 5.9:1) */
+  --ring: 200 98% 39%;                   /* #0284C7 Signal Deep */
 }
 .dark {
   --background: 220 49% 8%;              /* #0B1220 Ops Navy */
@@ -202,7 +202,7 @@ Do not:
 - **Signal is for brand and primary actions only.** Never use it for a status. Healthy, Warning and Critical keep their own colours.
 - **Severity badges:** a text label (`SEV-1`) on a tinted background with a coloured border or dot, never colour alone.
 - **Data:** resource IDs, ARNs, metrics and timestamps in IBM Plex Mono with tabular numerals.
-- **Demo vs Live mode:** label the mode at all times. Demo Mode uses a dashed Signal outline badge (`DEMO · synthetic data`). Live AWS Mode uses a solid badge with a dot. Never tint the logo to show the mode.
+- **Demo vs Live mode:** label the mode at all times. Demo Mode uses a dashed Signal outline badge (`DEMO — SYNTHETIC DATA`, standardised by ADR-011). Live AWS Mode uses a solid badge with a dot. Never tint the logo to show the mode.
 - **Motion:** for loading or "recovering" states, animate the right half sliding 12 units into alignment and back (200–300 ms ease-out). That is the brand's own motion. Avoid spinning the mark. Respect `prefers-reduced-motion`.
 - **Empty and healthy states:** a large, low-opacity (6–8 %) symbol works as a quiet watermark, as on the GitHub social preview.
 

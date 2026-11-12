@@ -11,14 +11,14 @@
 A UI-first cloud operations and incident response platform for AWS infrastructure.
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-FBBF24?style=flat-square)
-![Phase 1 of 10](https://img.shields.io/badge/phase-1%20of%2010-38BDF8?style=flat-square)
+![Phase 3 of 10](https://img.shields.io/badge/phase-3%20of%2010-38BDF8?style=flat-square)
 ![AWS](https://img.shields.io/badge/cloud-AWS-0B1220?style=flat-square)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-0B1220?style=flat-square)
 
 </div>
 
 > [!WARNING]
-> **Opsentra is a work in progress.** The project is in **Phase 1: branding and foundation**. The brand identity is complete; the application, backend services and AWS infrastructure **have not been built or deployed yet**. Everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features. This README will be updated as each phase passes its gate.
+> **Opsentra is a work in progress.** The project is in **Phase 3: AWS infrastructure foundation**. The brand identity, the dashboard foundation (Phase 1) and a fully interactive **Demo Mode** with Easy and Advanced views (Phase 2) are complete. Backend services and AWS infrastructure **have not been built or deployed yet**. Live AWS Mode is not connected and shows an error instead of data. Apart from Demo Mode, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
 
 ---
 
@@ -126,9 +126,9 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 
 | # | Phase | Status |
 |---|---|---|
-| 1 | Branding approval, foundation, UI/UX | 🟡 **In progress**: brand kit complete, frontend foundation next |
-| 2 | Fully interactive Demo Mode | ⚪ Planned |
-| 3 | AWS infrastructure foundation (Terraform, Cognito, API, DynamoDB) | ⚪ Planned |
+| 1 | Branding approval, foundation, UI/UX | ✅ Complete |
+| 2 | Fully interactive Demo Mode | ✅ Complete |
+| 3 | AWS infrastructure foundation (Terraform, Cognito, API, DynamoDB) | 🟡 **In progress** |
 | 4 | Real AWS monitoring and inventory | ⚪ Planned |
 | 5 | Incident detection, management and audit | ⚪ Planned |
 | 6 | Controlled automated remediation | ⚪ Planned |
@@ -141,8 +141,9 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 
 - [x] Project master blueprint: scope, architecture, security model, test plan, cost strategy
 - [x] Brand identity: logo system, favicons, colour and type guidelines ([`brand/`](brand/))
-- [ ] React + TypeScript dashboard foundation and page skeletons
-- [ ] Interactive Demo Mode
+- [x] React + TypeScript dashboard foundation and page skeletons ([`apps/dashboard/`](apps/dashboard/))
+- [x] Interactive Demo Mode: simulated failure → detection → approval → verified recovery, with audit and analytics
+- [x] Easy and Advanced views: plain-language Easy view by default, full Advanced view one click away
 - [ ] AWS infrastructure and live workflows
 
 ---
@@ -154,10 +155,13 @@ opsentra/
 ├── README.md
 ├── CLAUDE.md                      # guardrails for building with Claude Code
 ├── OPSENTRA_MASTER_BLUEPRINT.md   # source of truth: scope, architecture, phases
-└── brand/                         # logo system, favicons, brand guidelines
+├── .github/                       # frontend CI, PR template
+├── apps/dashboard/                # React + Vite + TypeScript dashboard (Phase 1 foundation)
+├── brand/                         # logo system, favicons, brand guidelines
+└── docs/                          # ADRs, architecture overview, phase checkpoints
 ```
 
-Application code (`apps/`), backend services (`services/`), Terraform (`infrastructure/`), failure labs (`labs/`), tests and docs will be added in the phases where they are built. See §8 of the [blueprint](OPSENTRA_MASTER_BLUEPRINT.md) for the planned layout.
+Backend services (`services/`), Terraform (`infrastructure/`), failure labs (`labs/`) and integration tests will be added in the phases where they are built. See §8 of the [blueprint](OPSENTRA_MASTER_BLUEPRINT.md) for the planned layout.
 
 ## Brand
 
@@ -167,9 +171,25 @@ The **Continuity Shift** symbol is one ring split into two halves that shift apa
 
 <br clear="left">
 
+### Run the dashboard locally
+
+```bash
+cd apps/dashboard
+npm ci
+npm run dev        # http://localhost:5173 (Demo Mode, synthetic data)
+# Opens in the Easy view: Practice lab → Break the web server, then follow the one button.
+# Switch to Advanced (top bar) for the full engineering view.
+npm test           # unit and component tests
+```
+
+See [`apps/dashboard/README.md`](apps/dashboard/README.md) for all scripts.
+
 ## Documentation
 
 - [Master blueprint](OPSENTRA_MASTER_BLUEPRINT.md): architecture, API contract, data model, threat model, test strategy, cost plan and interview storyboard
+- [Architecture overview](docs/architecture/overview.md): what is built now versus planned
+- [Architecture decision records](docs/adr/)
+- [Phase 1 checkpoint](docs/phases/phase-1-checkpoint.md), [design review](docs/phases/phase-1-design-review.md) and [Phase 2 checkpoint](docs/phases/phase-2-checkpoint.md)
 - [Brand guidelines](brand/BRAND_GUIDELINES.md): logo usage, colour, typography and dashboard branding
 
 ## Author

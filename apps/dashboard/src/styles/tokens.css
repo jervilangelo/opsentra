@@ -1,0 +1,90 @@
+/*
+ * Opsentra design tokens. Source of truth: brand/BRAND_GUIDELINES.md §3 and §9.
+ * Dark is the default theme (class="dark" on <html>); light mirrors it with the
+ * light-UI values.
+ *
+ * Deviation, recorded in docs/adr/ADR-011: on light backgrounds --primary uses
+ * Signal Ink (#0369A1) instead of Signal Deep (#0284C7). White button text on
+ * Signal Deep is 4.1:1, below WCAG 2.2 AA for normal-size text; on Signal Ink it
+ * is 5.9:1. Signal Deep stays the focus ring and symbol colour (3:1 non-text).
+ */
+
+:root {
+  /* Brand palette */
+  --ops-navy: #0b1220;
+  --ops-surface: #172338;
+  --ops-line: #24324a;
+  --ops-signal: #38bdf8;
+  --ops-signal-deep: #0284c7;
+  --ops-signal-ink: #0369a1;
+  --ops-cloud: #f8fafc;
+  --ops-slate: #94a3b8;
+  --ops-slate-ink: #475569;
+
+  /* Light theme (shadcn variable names) */
+  --background: var(--ops-cloud);
+  --foreground: var(--ops-navy);
+  --card: #ffffff;
+  --card-foreground: var(--ops-navy);
+  --popover: #ffffff;
+  --popover-foreground: var(--ops-navy);
+  --primary: var(--ops-signal-ink);
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: var(--ops-navy);
+  --muted: #eef2f6;
+  --muted-foreground: var(--ops-slate-ink);
+  --accent: #e2e8f0;
+  --accent-foreground: var(--ops-navy);
+  --destructive: #be123c;
+  --destructive-foreground: #ffffff;
+  --border: #cbd5e1;
+  --input: #94a3b8;
+  --ring: var(--ops-signal-deep);
+  --link: var(--ops-signal-ink);
+  --brand-symbol: var(--ops-signal-deep);
+  --sidebar: #ffffff;
+
+  /* Status (light UI). Never used for the logo; always paired with a label. */
+  --status-healthy: #047857;
+  --status-warning: #b45309;
+  --status-critical: #be123c;
+  --status-info: var(--ops-signal-ink);
+  --status-unknown: var(--ops-slate-ink);
+
+  --radius: 0.5rem;
+  color-scheme: light;
+}
+
+.dark {
+  --background: var(--ops-navy);
+  --foreground: var(--ops-cloud);
+  --card: var(--ops-surface);
+  --card-foreground: var(--ops-cloud);
+  --popover: var(--ops-surface);
+  --popover-foreground: var(--ops-cloud);
+  --primary: var(--ops-signal);
+  --primary-foreground: var(--ops-navy);
+  --secondary: #1e2c45;
+  --secondary-foreground: var(--ops-cloud);
+  --muted: #121b2c;
+  --muted-foreground: var(--ops-slate);
+  --accent: #1e2c45;
+  --accent-foreground: var(--ops-cloud);
+  --destructive: #fb7185;
+  --destructive-foreground: var(--ops-navy);
+  --border: var(--ops-line);
+  --input: #3a4a66;
+  --ring: var(--ops-signal);
+  --link: var(--ops-signal);
+  --brand-symbol: var(--ops-signal);
+  --sidebar: #0e1626;
+
+  --status-healthy: #34d399;
+  --status-warning: #fbbf24;
+  --status-critical: #fb7185;
+  --status-info: var(--ops-signal);
+  --status-unknown: var(--ops-slate);
+
+  color-scheme: dark;
+}

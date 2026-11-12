@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.1.0 (planning baseline; brand approved)  
-> **Date:** 2026-11-10  
+> **Version:** 1.4.0 (planning baseline; brand approved; Phase 1 and 2 built; Easy/Advanced views)  
+> **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phase 1 — brand identity approved and published in `brand/`; **no application or AWS resources have been deployed under this plan**.  
+> **Project state:** Phases 1–2 complete (gates passed 2026-11-12); Phase 3 (AWS foundation) in progress; **no AWS resources have been deployed under this plan yet**.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -36,12 +36,15 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-002 | UI-first web app; no CLI in interview | Agreed | Interview presentation priority. |
 | ADR-003 | 10 milestone-based phases, not calendar deadlines | Agreed | Work proceeds on acceptance tests, not time estimates. |
 | ADR-004 | Demo Mode and Live AWS Mode clearly separated | Agreed | Demo always available even when labs off. |
-| ADR-005 | React + Vite + TypeScript + Tailwind + shadcn/ui | Proposed technical baseline | May adjust after Phase 1 spike. |
+| ADR-005 | React + Vite + TypeScript + Tailwind + shadcn/ui; React Router, TanStack Query + Zustand | Agreed (2026-11-12) | Settled in the Phase 1 build; see `docs/adr/ADR-005-frontend-stack.md`. |
 | ADR-006 | Python AWS Lambda + API Gateway HTTP API + DynamoDB | Proposed technical baseline | Low operational overhead for low traffic. |
 | ADR-007 | Terraform S3 state backend with native locking | Proposed | Requires separately bootstrapped S3 bucket, versioning, encryption. |
 | ADR-008 | Cognito JWT auth with backend-enforced roles | Proposed | Privileged API protected; public Demo has no credentials. |
 | ADR-009 | No NAT gateway, RDS, always-on container infrastructure | Default constraint | Protect $150 AWS promotional credit. |
 | ADR-010 | Branding: "Continuity Shift" logo system | Agreed (2026-11-10) | Chosen from three concepts after a size/sync-icon review; kit and rules in `brand/` and `brand/BRAND_GUIDELINES.md`. |
+| ADR-011 | Phase 1 contract, label and colour-mapping fixes | Agreed (2026-11-12) | One Demo label; `verifiedHealthyAt`, `RemediationRequest`, `OverviewSummary` DTOs; SEV display map; DEGRADED/UNKNOWN colours; light primary = Signal Ink. See `docs/adr/ADR-011-phase1-contract-and-label-fixes.md`. |
+| ADR-012 | Demo Mode engine and Phase 2 contract additions | Agreed (2026-11-12) | `investigate`/`close` routes, remediation list, Runbook/AuditEvent/LabScenario/AnalyticsSummary DTOs, `SECURITY_GROUP` resource type, typed mutation guards. See `docs/adr/ADR-012-demo-engine-and-contract-additions.md`. |
+| ADR-013 | Easy and Advanced views | Agreed (2026-11-12) | Per-browser `view` preference, Easy by default; presentation only, same data source, guards and audit. See `docs/adr/ADR-013-easy-and-advanced-views.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
 
@@ -102,6 +105,8 @@ Brand personality: calm under pressure, practical, precise, secure, technically 
 
 **Approved tokens:** Ops Navy `#0B1220`, Surface `#172338`, Line `#24324A`, Signal `#38BDF8` (accent on dark), Signal Deep `#0284C7` (accent/symbol on light), Signal Ink `#0369A1` (accent text on light), Cloud `#F8FAFC`, Slate `#94A3B8`. Status colours have dark-UI / light-UI pairs: healthy `#34D399` / `#047857`, warning `#FBBF24` / `#B45309`, critical `#FB7185` / `#BE123C`. Inter for UI; IBM Plex Mono for technical codes, IDs and metrics. Contrast values are documented in the brand guidelines (WCAG 2.2 AA); never communicate status through color alone, and never recolour the logo with status colours.
 
+**Health and severity display (ADR-011):** `HEALTHY` → healthy, `DEGRADED` → warning, `UNHEALTHY` → critical, `UNKNOWN` → Slate `#94A3B8` (dark) / Slate Ink `#475569` (light), always with a text label and icon. Severity badges read `SEV-1 · Critical`, `SEV-2 · High`, `SEV-3 · Medium`, `SEV-4 · Low`; the DTO keeps `CRITICAL/HIGH/MEDIUM/LOW`. On light backgrounds the primary button fill is Signal Ink (white text 5.9:1); Signal Deep remains the symbol and focus-ring colour.
+
 ### 2.2 Primary navigation / IA
 
 1. **Overview:** current health, incident counters, latest events, monitored count, last sync.
@@ -114,7 +119,7 @@ Brand personality: calm under pressure, practical, precise, secure, technically 
 8. **Architecture:** visual topology and event flow of Opsentra; static diagrams initially, registered resource links later.
 9. **Audit & Settings:** read-only audit events, role display, status, thresholds, toggles controlled by backend.
 
-**UI-wide:** persistent mode banner (`DEMO — simulated data` vs `LIVE AWS — ap-southeast-1`), environment badge, refresh age, accessible toasts, loading/error/empty states, keyboard support, responsive desktop-first design, no fake "real-time" labels. Live Mode must fail closed if auth/network unavailable; do not auto-fallback to mocked status while retaining a Live label.
+**UI-wide (v1.4.0, ADR-013):** an **Easy / Advanced view** toggle, Easy by default. Easy shows four plain-language destinations (Home, Incidents, Practice lab, Activity & settings), one sentence and one next-step button per screen, and a recovery path on each incident. Advanced is the full interface. The view never changes data, roles or rules. **Also UI-wide:** persistent mode banner (`DEMO — SYNTHETIC DATA` vs `LIVE AWS — ap-southeast-1`), environment badge, refresh age, accessible toasts, loading/error/empty states, keyboard support, responsive desktop-first design, no fake "real-time" labels. Live Mode must fail closed if auth/network unavailable; do not auto-fallback to mocked status while retaining a Live label.
 
 ### 2.3 Data-driven interactions
 
@@ -145,6 +150,7 @@ interface Incident {
   id: string; correlationKey: string; resourceId: string;
   title: string; severity: Severity; state: IncidentState;
   openedAt: string; detectedAt?: string; acknowledgedAt?: string;
+  verifiedHealthyAt?: string; // v1.2.0: set only after independent health checks pass (§4.5 MTTR)
   resolvedAt?: string; version: number; runbookId?: string;
 }
 interface TimelineEvent {
@@ -152,7 +158,24 @@ interface TimelineEvent {
   eventType: string; actorType: 'SYSTEM'|'USER'; actorId?: string;
   detail: Record<string, unknown>;
 }
+// v1.2.0 (ADR-011): mirrors the §4.3 opsentra-remediations table
+interface RemediationRequest {
+  requestId: string; actionKey: string; incidentId: string; resourceId: string;
+  requestedBy: string; approvedBy?: string; status: RunbookState;
+  executionId?: string; expectedVersion: number; errorSummary?: string;
+  requestedAt: string; decidedAt?: string; completedAt?: string; expiresAt: string;
+}
+// v1.2.0 (ADR-011): payload of GET /v1/overview
+interface OverviewSummary {
+  monitoredResources: number; healthCounts: Record<Health, number>;
+  activeIncidents: number; activeBySeverity: Record<Severity, number>;
+  lastSyncAt?: string;
+}
 ```
+
+Success payloads are wrapped as `{data, meta}`; `meta.dataset` is `'synthetic'` or `'live'` so a view can prove which dataset it shows.
+
+**v1.3.0 (ADR-012):** `ResourceSummary.type` adds `'SECURITY_GROUP'`; new DTOs `Runbook`, `AuditEvent`, `LabScenario`, `AnalyticsSummary`, `Role`, and typed mutation inputs (`MutationGuard {expectedVersion, idempotencyKey}` plus `reason`/`runbookId`/`decision` where applicable). Identity and role are never request fields. Full shapes in ADR-012 and `apps/dashboard/src/types/domain.ts`.
 
 ---
 
@@ -278,7 +301,10 @@ sequenceDiagram
 | GET | `/v1/incidents/{incidentId}` | Viewer+ | Incident detail and version. |
 | GET | `/v1/incidents/{incidentId}/timeline` | Viewer+ | Ordered audit/evidence events. |
 | POST | `/v1/incidents/{incidentId}/acknowledge` | Operator+ | Conditional state transition; reason required. |
+| POST | `/v1/incidents/{incidentId}/investigate` | Operator+ | v1.3.0. `ACKNOWLEDGED → INVESTIGATING`; expected version + idempotency key. |
 | POST | `/v1/incidents/{incidentId}/request-remediation` | Operator+ | Allowed action request; idempotency key required. |
+| POST | `/v1/incidents/{incidentId}/close` | Operator+ | v1.3.0. `RESOLVED → CLOSED`; expected version + idempotency key. |
+| GET | `/v1/remediations` | Viewer+ | v1.3.0. Recovery requests, newest first; optional `incidentId` filter. |
 | POST | `/v1/remediations/{requestId}/decision` | Admin | Approve/reject; server-side role check, audit, optimistic lock. |
 | GET | `/v1/remediations/{requestId}` | Viewer+ | Execution status and sanitized logs. |
 | GET | `/v1/runbooks` | Viewer+ | Readable allowlisted runbooks and applicability. |
@@ -429,7 +455,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Objective:** Establish final brand, repo structure, frontend foundation, navigation and typed interfaces—without AWS deployment.
 
-**Work:** ~~select approved logo concept; export SVG/favicons/light-dark wordmark; brand guidelines~~ (done: `brand/`); token file; setup React/Vite/TypeScript, Tailwind, shadcn/ui, routing, state/query library, lint/format, tests, responsive accessible layout; build nine page skeletons and reusable components; document API DTOs, fixtures, mode guard; empty states, auth layout, error page; establish architecture overview and design review checklist.
+**Work:** ~~select approved logo concept; export SVG/favicons/light-dark wordmark; brand guidelines~~ (done: `brand/`); token file; (complete 2026-11-12: see `docs/phases/phase-1-checkpoint.md`); setup React/Vite/TypeScript, Tailwind, shadcn/ui, routing, state/query library, lint/format, tests, responsive accessible layout; build nine page skeletons and reusable components; document API DTOs, fixtures, mode guard; empty states, auth layout, error page; establish architecture overview and design review checklist.
 
 **Deliverables:** running frontend with consistent navigation and no false live data, brand kit, reusable component library, frontend build/test pipeline, project README.
 
@@ -438,6 +464,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 ### Phase 2 — Fully interactive Demo Mode
 
 **Objective:** Interviewable product before AWS is connected.
+
+**Status:** complete 2026-11-12 (ADR-012, ADR-013): see `docs/phases/phase-2-checkpoint.md`.
 
 **Work:** implement isolated fake-data adapter; deterministic resource inventory; incident state machine; staged synthetic alarm + timeline; approval and recovery UI; error paths; scenario reset; analytics derived from simulated incident history; screen-reader-friendly progress indicators; optional browser-session persistence; create short guided presentation path.
 
@@ -822,9 +850,9 @@ These links support design decisions and should be rechecked for new AWS service
 
 ### Product and design
 - [x] Choose final logo and approve brand guide
-- [ ] Define theme tokens and accessibility standards
-- [ ] Build all page routes and data contracts
-- [ ] Build transparent Demo Mode with replay/reset
+- [x] Define theme tokens and accessibility standards (`apps/dashboard/src/styles/tokens.css`, `docs/phases/phase-1-design-review.md`)
+- [x] Build all page routes and data contracts (Phase 1)
+- [x] Build transparent Demo Mode with replay/reset (Phase 2)
 - [ ] Build clear Live AWS Mode identity and failure states
 
 ### Infrastructure and security
@@ -865,5 +893,8 @@ These links support design decisions and should be rechecked for new AWS service
 |---|---|---|
 | 1.0.0 | 2026-11-10 | Initial master blueprint: architecture, roles, UI, ten milestone phases, incident scenarios, data model, security, IaC, test plan, cost, interview demo. |
 | 1.1.0 | 2026-11-10 | ADR-010 agreed: Continuity Shift brand identity approved and published in `brand/`; approved colour/type tokens replace provisional ones; repo layout and checklist updated. |
+| 1.2.0 | 2026-11-12 | ADR-005 agreed (frontend stack incl. React Router, TanStack Query, Zustand). ADR-011: Demo label standardised to `DEMO — SYNTHETIC DATA`; `Incident.verifiedHealthyAt`, `RemediationRequest`, `OverviewSummary` added to §2.4; severity display map and DEGRADED/UNKNOWN colours in §2.1; light primary uses Signal Ink. Phase 1 dashboard foundation built (gate review pending). |
+| 1.3.0 | 2026-11-12 | ADR-012: interactive Demo Mode engine; §4.2 adds `investigate`, `close` and remediation-list routes; §2.4 adds `SECURITY_GROUP`, Runbook, AuditEvent, LabScenario, AnalyticsSummary, Role and typed mutation inputs. Phase 2 built (gate review pending). |
+| 1.4.0 | 2026-11-12 | ADR-013: Easy / Advanced view toggle (Easy default); presentation-only, shared command hook, plain-language Easy screens with a recovery path. |
 
-**Status:** APPROVED CONCEPT / IMPLEMENTATION NOT STARTED. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–2 COMPLETE; Phase 3 in progress; no AWS resources deployed yet. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

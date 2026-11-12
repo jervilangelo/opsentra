@@ -6,7 +6,7 @@ Opsentra is a UI-first AWS cloud operations and incident response platform. It i
 
 ## Current phase
 
-**Phase 1: Branding approval, foundation, UI/UX** (blueprint §7). Branding is done (`brand/`, ADR-010). Next up: the dashboard foundation in `apps/dashboard/`.
+**Phase 3: AWS infrastructure foundation** (blueprint §7). Phases 1 (foundation, UI/UX) and 2 (interactive Demo Mode, Easy/Advanced views) passed their gates on 2026-11-12.
 
 Update this line when a phase gate passes. Do not start the next phase until the current gate checklist (§7.1) is reviewed with the owner.
 
@@ -47,7 +47,7 @@ Update this line when a phase gate passes. Do not start the next phase until the
 | CI/CD | GitHub Actions with AWS OIDC (no static keys). PRs never write to AWS |
 
 - **API shape:** `{data, meta}` for success and `{error: {code, message, requestId}}` for errors. Timestamps are ISO-8601 UTC. Use the status codes in §4.2.
-- **Python version:** pin the Lambda runtime and local tests to the same version, and confirm AWS supports it. The local Python is 3.14. Build native dependencies in Docker or CI, not on Windows.
+- **Python version:** pin the Lambda runtime and local tests to the same version, and confirm AWS supports it. Lambda runs `python3.12`; run local tests with `py -3.12` (the `python` on PATH is 3.8 and must not be used). Build native dependencies in Docker or CI, not on Windows.
 - **Types:** shared DTO types follow §2.4 (`Mode`, `Health`, `Severity`, `IncidentState`, …). Do not invent parallel shapes.
 - **Structure:** create folders only in the phase that needs them (§8). No placeholder files.
 - **Platform:** the dev machine is Windows. Scripts must run in Git Bash, or be written in Python.
