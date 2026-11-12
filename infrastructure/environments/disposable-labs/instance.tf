@@ -15,14 +15,16 @@ locals {
   }
 
   # Schedule self-termination at the lab's expiry (shutdown behaviour is
-  # terminate), then install Nginx and publish the health page.
+  # terminate), add swap, then install Nginx and publish the health page.
   user_data = <<-EOT
     #!/bin/bash
     set -euo pipefail
     mins=$(( ( $(date -d '${local.expires_at}' +%s) - $(date +%s) ) / 60 ))
     if [ "$mins" -lt 1 ]; then mins=1; fi
     shutdown -h +"$mins" "Opsentra lab expired"
-    dnf install -y nginx
+    # t4g.nano has 512 MB; dnf is OOM-killed without swap (seen on first deploy).
+    fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+    dnf install -y --setopt=install_weak_deps=False nginx
     printf '%s\n' '${local.marker}' > /usr/share/nginx/html/health
     systemctl enable --now nginx
   EOT

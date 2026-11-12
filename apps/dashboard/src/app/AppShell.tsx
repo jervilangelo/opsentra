@@ -1,4 +1,4 @@
-import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 import { Outlet } from 'react-router';
 
@@ -11,7 +11,12 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { cn } from '@/lib/utils';
 import { DemoControlBar } from '@/features/demo/DemoControlBar';
 import { useDemoRuntime } from '@/modes/demo/useDemoRuntime';
+import { useOverview } from '@/modes/data-hooks';
+import { signOut, useLiveAuth } from '@/modes/live/auth';
+import { getLiveStatus } from '@/modes/live/liveDataSource';
 import { useMode } from '@/modes/mode-store';
+import { useLiveMe } from '@/modes/session';
+import { ROLE_LABEL } from '@/types/display';
 import { usePreferences } from '@/stores/preferences';
 
 import { SidebarBrand, SidebarNav } from './Sidebar';
@@ -19,15 +24,37 @@ import { SidebarBrand, SidebarNav } from './Sidebar';
 /** Environment badge and last sync. Shows nothing it can't back with data. */
 function SyncStatus() {
   const mode = useMode();
+  const signedIn = useLiveAuth((st) => st.signedIn);
+  const live = mode === 'live' && getLiveStatus(signedIn).available;
+  const me = useLiveMe();
+  const overview = useOverview();
+  if (mode === 'demo') {
+    return (
+      <div className="hidden items-center gap-3 text-xs text-muted-foreground md:flex">
+        <span className="rounded border px-1.5 py-0.5 whitespace-nowrap">
+          HarborPoint sandbox (fictional)
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="hidden items-center gap-3 text-xs text-muted-foreground md:flex">
       <span className="rounded border px-1.5 py-0.5 whitespace-nowrap">
-        {mode === 'demo' ? 'HarborPoint sandbox (fictional)' : 'Not connected'}
+        {!live
+          ? 'Not connected'
+          : me.data
+            ? `Signed in · ${ROLE_LABEL[me.data.data.role]}`
+            : 'Signed in'}
       </span>
-      {mode === 'live' ? (
-        <span className="flex items-center gap-1 whitespace-nowrap">
-          Last sync: <Timestamp value={undefined} fallback="—" />
-        </span>
+      <span className="flex items-center gap-1 whitespace-nowrap">
+        Last sync:{' '}
+        <Timestamp value={live ? overview.data?.data.lastSyncAt : undefined} fallback="—" />
+      </span>
+      {live ? (
+        <Button variant="ghost" size="sm" onClick={() => signOut()}>
+          <LogOut aria-hidden="true" />
+          Sign out
+        </Button>
       ) : null}
     </div>
   );
@@ -119,8 +146,9 @@ export function AppShell() {
         </main>
 
         <footer className="border-t px-4 py-3 text-xs text-muted-foreground sm:px-6">
-          Opsentra · Demo Mode is a simulation. HarborPoint Solutions is fictional; Demo Mode data
-          is synthetic.
+          {mode === 'demo'
+            ? 'Opsentra · Demo Mode is a simulation. HarborPoint Solutions is fictional; Demo Mode data is synthetic.'
+            : 'Opsentra · Live AWS Mode: data from the authenticated Opsentra API in ap-southeast-1. Lab resources are disposable test infrastructure.'}
         </footer>
       </div>
     </div>

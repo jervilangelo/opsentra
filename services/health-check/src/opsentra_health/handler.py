@@ -109,6 +109,16 @@ _clients: Clients | None = None
 _probe: Callable[[str, str, float], tuple[bool, str]] = probe
 
 
+def _warm() -> None:
+    """Create AWS clients during Lambda init (boosted CPU), not in the first run."""
+    global _clients
+    if os.environ.get("RESOURCES_TABLE") and _clients is None:
+        try:
+            _clients = Clients()
+        except Exception:  # noqa: BLE001 — fall back to lazy creation
+            _clients = None
+
+
 def clients() -> Clients:
     global _clients
     if _clients is None:
@@ -199,6 +209,9 @@ def run(cfg: Config, c: Clients, now: str) -> dict[str, Any]:
     put_metric(c, cfg, healthy)
     update_registry(c, cfg, "HEALTHY" if healthy else "UNHEALTHY", state, now, verified=True)
     return {"result": "healthy" if healthy else "unhealthy", "reason": reason}
+
+
+_warm()
 
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:

@@ -168,7 +168,13 @@ export function OverviewPage() {
         {view === 'easy' ? (
           <EasyOverview />
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+          <div
+            className={
+              mode === 'demo'
+                ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]'
+                : 'grid gap-6'
+            }
+          >
             {mode === 'demo' ? <DemoGuide className="h-fit xl:order-last" /> : null}
             <OverviewContent />
           </div>

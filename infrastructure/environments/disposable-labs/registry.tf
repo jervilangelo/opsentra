@@ -116,5 +116,8 @@ resource "aws_dynamodb_table_item" "registry" {
 
   lifecycle {
     ignore_changes = [item] # the probe updates health fields in place
+    # A new instance means a new resource ID: re-register instead of keeping
+    # a stale allowlist entry (caught on the first deploy's re-plan).
+    replace_triggered_by = [aws_instance.web.id]
   }
 }

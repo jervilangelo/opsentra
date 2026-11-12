@@ -164,8 +164,8 @@ resource "aws_lambda_function" "api" {
   handler          = "opsentra_api.handler.lambda_handler"
   filename         = data.archive_file.api.output_path
   source_code_hash = data.archive_file.api.output_base64sha256
-  memory_size      = 128
-  timeout          = 5
+  memory_size      = 256 # more CPU: a cold boto3 start at 128 MB exceeded 5 s
+  timeout          = 10
 
   environment {
     variables = {
@@ -219,7 +219,7 @@ resource "aws_apigatewayv2_integration" "lambda" {
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.api.invoke_arn
   payload_format_version = "2.0"
-  timeout_milliseconds   = 6000
+  timeout_milliseconds   = 11000
 }
 
 resource "aws_apigatewayv2_route" "this" {

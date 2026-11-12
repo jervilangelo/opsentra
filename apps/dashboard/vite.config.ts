@@ -30,5 +30,13 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     restoreMocks: true,
+    // Tests never use a developer's local Live config (.env.local).
+    env: {
+      VITE_APP_MODE_DEFAULT: 'demo',
+      VITE_API_BASE_URL: '',
+      VITE_COGNITO_USER_POOL_ID: '',
+      VITE_COGNITO_CLIENT_ID: '',
+      VITE_COGNITO_DOMAIN: '',
+    },
   },
 });

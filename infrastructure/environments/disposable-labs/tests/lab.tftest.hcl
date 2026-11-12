@@ -77,6 +77,10 @@ run "lab_is_locked_down" {
     error_message = "User data schedules self-termination and adds no SSH keys."
   }
   assert {
+    condition     = strcontains(local.user_data, "swapon") && strcontains(local.user_data, "dnf install")
+    error_message = "Swap must be enabled before dnf runs on a 512 MB instance."
+  }
+  assert {
     condition     = contains(["t4g.nano", "t4g.micro"], aws_instance.web.instance_type)
     error_message = "Cost guardrail on instance type."
   }

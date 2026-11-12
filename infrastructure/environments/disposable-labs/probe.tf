@@ -98,7 +98,7 @@ resource "aws_lambda_function" "probe" {
   handler          = "opsentra_health.handler.lambda_handler"
   filename         = data.archive_file.probe.output_path
   source_code_hash = data.archive_file.probe.output_base64sha256
-  memory_size      = 128
+  memory_size      = 256 # boto3 cold start; still within the free tier at 1 call/min
   timeout          = 10
 
   environment {

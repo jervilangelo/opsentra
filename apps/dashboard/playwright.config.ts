@@ -24,6 +24,13 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run build && npm run preview',
+    // E2E is Demo-only and must not pick up a developer's Live config (.env.local).
+    env: {
+      VITE_API_BASE_URL: '',
+      VITE_COGNITO_USER_POOL_ID: '',
+      VITE_COGNITO_CLIENT_ID: '',
+      VITE_COGNITO_DOMAIN: '',
+    },
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

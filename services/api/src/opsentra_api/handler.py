@@ -100,6 +100,21 @@ def get_store() -> store.Store:
     return _store
 
 
+def _warm() -> None:
+    """Create the AWS client during Lambda init, which runs with boosted CPU,
+    instead of inside the first request (a cold boto3 import at 128 MB took
+    over 5 s). Skipped when no table is configured (tests, local runs)."""
+    global _store
+    if os.environ.get("RESOURCES_TABLE") and _store is None:
+        try:
+            _store = store.DynamoStore()
+        except Exception:  # noqa: BLE001 — fall back to lazy creation
+            _store = None
+
+
+_warm()
+
+
 def set_store(s: store.Store | None) -> None:
     """Tests inject a stub store."""
     global _store

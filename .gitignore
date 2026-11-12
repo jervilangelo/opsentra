@@ -43,3 +43,4 @@ Thumbs.db
 backend.hcl
 .build/
 *.tfplan
+.lab_expires_at
