@@ -3,6 +3,7 @@ account_id         = "000000000000"
 state_bucket       = "opsentra-tfstate-000000000000-ap-southeast-1"
 
 # Optional
+# alert_email                       = "you@example.com"   # incident alerts (SNS); confirm the AWS email
 # create_budget                     = true   # off by default (shared account)
 # budget_alert_email                = "you@example.com"
 # monthly_budget_usd                = 5

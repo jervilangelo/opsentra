@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.6.1 (Phases 1–4 complete; Phase 5 in progress)  
+> **Version:** 1.7.0 (Phases 1–4 complete; Phase 5 in progress)  
 > **Date:** 2026-11-12  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–4 complete (gates passed 2026-11-12). The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests. Phase 5 in progress.  
@@ -47,6 +47,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-013 | Easy and Advanced views | Agreed (2026-11-12) | Per-browser `view` preference, Easy by default; presentation only, same data source, guards and audit. See `docs/adr/ADR-013-easy-and-advanced-views.md`. |
 | ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
 | ADR-015 | Phase 4 lab design and Live adapter | Agreed (2026-11-12) | Own VPC, HTTP-only probe target, self-terminating lab with required expiry, self-disabling probe, registry via Terraform, PKCE sign-in, `VITE_COGNITO_DOMAIN`. See `docs/adr/ADR-015-phase4-lab-and-live-adapter.md`. |
+| ADR-016 | Incident pipeline | Agreed (2026-11-12) | Validated ingest, `EVENT#` dedup, correlation transaction, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS once per incident, DLQ. See `docs/adr/ADR-016-incident-pipeline.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
 
@@ -333,6 +334,8 @@ Separate small on-demand tables for readability and independent permissions:
 
 **`opsentra-active-correlations`** (optional fifth table): correlation key → incident ID with conditional creation and explicit clear on verified terminal close; avoid accidental duplicates across asynchronous event replay.
 
+**v1.7.0 (ADR-016):** the correlation item keeps `lastResolvedAt` after a verified resolution so older ALARMs never reopen it; correlation keys are `region:resourceId:alarmName` (no account ID). The audit table also holds `EVENT#<eventId>` delivery markers (TTL 7 days) and `IDEMPOTENCY#<key>` records (TTL 24 h). Incidents gain `lastSignalAt`, `signalClearedAt`, `assignedTo` and `alarmName`. Registry items gain `alarmNames`, `alarmTitles` and `severity`.
+
 **Schema tradeoff:** a single-table design is possible, but separate tables prioritize understandability and role-scoped access for an interview project. Document read/write costs and adjust after load tests.
 
 ### 4.4 Incident state model and invariants
@@ -502,6 +505,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 ### Phase 5 — Incident detection, management, and audit
 
 **Objective:** Persist, deduplicate, and explain cloud incidents.
+
+**Status (2026-11-12):** code and tests written (ADR-016); deployment and the live gate test pending: see `docs/phases/phase-5-checkpoint.md`.
 
 **Work:** ingest CloudWatch state change events; schema/source validation; correlation locks and idempotent conditional writes; status machine, acknowledge/assign flows; timeline and audit; SNS event alert with suppression; pagination/filter; alarm reconciler and missing-event repair; no automatic false resolution on event timeout.
 
@@ -906,5 +911,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.5.0 | 2026-11-12 | Phases 1–2 complete. ADR-006/007/008 agreed; ADR-014 records Phase 3 choices. Phase 3 Terraform, Python API, tests and CI written; not yet deployed. |
 | 1.6.0 | 2026-11-12 | ADR-015: Phase 4 lab (own VPC, self-terminating EC2/Nginx, probe + metric + alarm, EventBridge → Logs, registry), JWT read routes, Cognito PKCE Live adapter; §9.3 adds `VITE_COGNITO_DOMAIN`. |
 | 1.6.1 | 2026-11-12 | Phases 3 and 4 gates passed and approved by the owner; §16 checklist updated with verified items only. |
+| 1.7.0 | 2026-11-12 | ADR-016: incident pipeline (ingest, correlation, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS alerts, DLQ); §4.3 schema additions; incident write routes and `GET /v1/audit` implemented. |
 
 **Status:** APPROVED CONCEPT / PHASES 1–4 COMPLETE; Phase 5 in progress; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

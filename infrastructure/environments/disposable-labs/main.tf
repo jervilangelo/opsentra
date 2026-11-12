@@ -19,6 +19,8 @@ locals {
 
   resources_table_name = data.terraform_remote_state.control_plane.outputs.table_names["resources"]
   resources_table_arn  = data.terraform_remote_state.control_plane.outputs.table_arns["resources"]
+  ingest_function_arn  = data.terraform_remote_state.control_plane.outputs.ingest_function_arn
+  ingest_function_name = data.terraform_remote_state.control_plane.outputs.ingest_function_name
 }
 
 # ---------------------------------------------------------------- network ---

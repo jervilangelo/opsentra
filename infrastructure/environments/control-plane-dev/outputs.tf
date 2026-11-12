@@ -29,6 +29,15 @@ output "table_arns" {
   value       = module.tables.table_arns
 }
 
+output "ingest_function_arn" {
+  description = "Read by the disposable-labs root to target alarm events at the ingest Lambda."
+  value       = module.incidents.ingest_function_arn
+}
+
+output "ingest_function_name" {
+  value = module.incidents.ingest_function_name
+}
+
 output "gha_plan_role_arn" {
   description = "Set as the GitHub repository secret AWS_PLAN_ROLE_ARN (it contains the account ID)."
   value       = module.ci.plan_role_arn

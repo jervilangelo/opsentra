@@ -24,6 +24,9 @@ mock_provider "aws" {
       version = "1"
     }
   }
+  mock_resource "aws_cloudwatch_event_rule" {
+    defaults = { arn = "arn:aws:events:ap-southeast-1:111122223333:rule/opsentra-lab-alarm-state" }
+  }
   mock_resource "aws_lambda_alias" {
     defaults = { arn = "arn:aws:lambda:ap-southeast-1:111122223333:function:mock:live" }
   }
@@ -33,8 +36,10 @@ override_data {
   target = data.terraform_remote_state.control_plane
   values = {
     outputs = {
-      table_names = { resources = "opsentra-dev-resources" }
-      table_arns  = { resources = "arn:aws:dynamodb:ap-southeast-1:111122223333:table/opsentra-dev-resources" }
+      table_names          = { resources = "opsentra-dev-resources" }
+      table_arns           = { resources = "arn:aws:dynamodb:ap-southeast-1:111122223333:table/opsentra-dev-resources" }
+      ingest_function_arn  = "arn:aws:lambda:ap-southeast-1:111122223333:function:opsentra-dev-incident-ingest"
+      ingest_function_name = "opsentra-dev-incident-ingest"
     }
   }
 }
@@ -140,6 +145,14 @@ run "alarm_and_schedule" {
   assert {
     condition     = length(local.registry) == 2 && local.registry.web.environment.S == "lab"
     error_message = "Exactly the two lab resources are registered."
+  }
+  assert {
+    condition     = local.registry.web.alarmNames.L[0].S == aws_cloudwatch_metric_alarm.nginx.alarm_name
+    error_message = "The web server's alarm is registered, so ingest can correlate it."
+  }
+  assert {
+    condition     = aws_lambda_permission.events_to_ingest.source_arn == aws_cloudwatch_event_rule.alarm_state.arn
+    error_message = "Only the lab alarm rule may invoke the ingest Lambda."
   }
 }
 

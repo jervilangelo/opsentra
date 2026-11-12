@@ -30,6 +30,18 @@ variable "source_dir" {
   type        = string
 }
 
+variable "extra_source_dirs" {
+  description = "More package folders bundled into the zip (the shared incident core)."
+  type        = list(string)
+  default     = []
+}
+
+variable "write_tables" {
+  description = "Tables the API may write with conditional updates (never delete): name -> { name, arn }."
+  type        = map(object({ name = string, arn = string }))
+  default     = {}
+}
+
 variable "build_dir" {
   type = string
 }
@@ -76,28 +88,44 @@ variable "throttle_rate" {
 
 variable "app_version" {
   type    = string
-  default = "0.4.0"
+  default = "0.5.0"
 }
 
 locals {
   function_name = "${var.name_prefix}-api"
   routes = {
-    "GET /v1/health"                          = { protected = false }
-    "GET /v1/me"                              = { protected = true }
-    "GET /v1/overview"                        = { protected = true }
-    "GET /v1/resources"                       = { protected = true }
-    "GET /v1/resources/{resourceId}"          = { protected = true }
-    "GET /v1/incidents"                       = { protected = true }
-    "GET /v1/incidents/{incidentId}"          = { protected = true }
-    "GET /v1/incidents/{incidentId}/timeline" = { protected = true }
+    "GET /v1/health"                              = { protected = false }
+    "GET /v1/me"                                  = { protected = true }
+    "GET /v1/overview"                            = { protected = true }
+    "GET /v1/resources"                           = { protected = true }
+    "GET /v1/resources/{resourceId}"              = { protected = true }
+    "GET /v1/incidents"                           = { protected = true }
+    "GET /v1/incidents/{incidentId}"              = { protected = true }
+    "GET /v1/incidents/{incidentId}/timeline"     = { protected = true }
+    "POST /v1/incidents/{incidentId}/acknowledge" = { protected = true }
+    "POST /v1/incidents/{incidentId}/investigate" = { protected = true }
+    "POST /v1/incidents/{incidentId}/close"       = { protected = true }
+    "GET /v1/audit"                               = { protected = true }
   }
+
+  bundle = merge([
+    for dir in concat([var.source_dir], var.extra_source_dirs) : {
+      for f in fileset(dir, "**/*.py") : f => "${dir}/${f}" if !strcontains(f, "__pycache__")
+    }
+  ]...)
 }
 
 data "archive_file" "api" {
   type        = "zip"
-  source_dir  = var.source_dir
   output_path = "${var.build_dir}/${local.function_name}.zip"
-  excludes    = ["**/__pycache__/**", "**/*.pyc"]
+
+  dynamic "source" {
+    for_each = local.bundle
+    content {
+      filename = source.key
+      content  = file(source.value)
+    }
+  }
 }
 
 resource "aws_cloudwatch_log_group" "lambda" {
@@ -140,6 +168,12 @@ locals {
         Action   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"]
         Resource = flatten([for t in values(var.read_tables) : [t.arn, "${t.arn}/index/*"]])
       }],
+      length(var.write_tables) == 0 ? [] : [{
+        Sid      = "ConditionalWritesNoDeletes"
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"]
+        Resource = [for t in values(var.write_tables) : t.arn]
+      }],
     )
   }
 }
@@ -175,6 +209,7 @@ resource "aws_lambda_function" "api" {
       RESOURCES_TABLE      = try(var.read_tables["resources"].name, "")
       INCIDENTS_TABLE      = try(var.read_tables["incidents"].name, "")
       AUDIT_TABLE          = try(var.read_tables["audit"].name, "")
+      CORRELATIONS_TABLE   = try(var.write_tables["correlations"].name, "")
     }
   }
 

@@ -31,7 +31,13 @@ const later = (phase: string) => (): Promise<never> =>
     new LiveUnavailableError('not-implemented', `This part of Live AWS Mode arrives in ${phase}.`),
   );
 
-async function get<T>(path: string): Promise<ApiSuccess<T>> {
+interface SendOptions {
+  method?: 'GET' | 'POST';
+  body?: unknown;
+  idempotencyKey?: string;
+}
+
+async function get<T>(path: string, opts: SendOptions = {}): Promise<ApiSuccess<T>> {
   if (!liveConfigured() || !env.apiBaseUrl) {
     throw new LiveUnavailableError(
       'not-configured',
@@ -43,8 +49,13 @@ async function get<T>(path: string): Promise<ApiSuccess<T>> {
 
   let res: Response;
   try {
+    const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+    if (opts.body !== undefined) headers['content-type'] = 'application/json';
+    if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey;
     res = await fetch(`${env.apiBaseUrl.replace(/\/$/, '')}${path}`, {
-      headers: { authorization: `Bearer ${token}` },
+      method: opts.method ?? 'GET',
+      headers,
+      ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
     });
   } catch {
     throw new LiveUnavailableError('network', 'The Opsentra API could not be reached.');
@@ -92,12 +103,27 @@ export const liveDataSource: DataSource = {
   listRunbooks: later('Phase 6'),
   listRemediations: later('Phase 6'),
   getAnalytics: later('Phase 8'),
-  listAudit: later('Phase 5'),
+  listAudit: () => get('/v1/audit'),
   listLabs: later('Phase 7'),
-  acknowledgeIncident: later('Phase 5'),
-  investigateIncident: later('Phase 5'),
+  acknowledgeIncident: (id, input) =>
+    get(`/v1/incidents/${enc(id)}/acknowledge`, {
+      method: 'POST',
+      body: { expectedVersion: input.expectedVersion, reason: input.reason },
+      idempotencyKey: input.idempotencyKey,
+    }),
+  investigateIncident: (id, input) =>
+    get(`/v1/incidents/${enc(id)}/investigate`, {
+      method: 'POST',
+      body: { expectedVersion: input.expectedVersion },
+      idempotencyKey: input.idempotencyKey,
+    }),
   requestRemediation: later('Phase 6'),
   decideRemediation: later('Phase 6'),
-  closeIncident: later('Phase 5'),
+  closeIncident: (id, input) =>
+    get(`/v1/incidents/${enc(id)}/close`, {
+      method: 'POST',
+      body: { expectedVersion: input.expectedVersion },
+      idempotencyKey: input.idempotencyKey,
+    }),
   startLab: later('Phase 7'),
 };

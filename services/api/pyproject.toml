@@ -6,7 +6,7 @@ requires-python = "==3.12.*"
 dependencies = []  # stdlib only: nothing to build natively
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "../incidents/src", "tests"]
 testpaths = ["tests"]
 addopts = "-q"
 
@@ -20,4 +20,4 @@ select = ["E", "F", "I", "B", "UP", "S", "BLE"]
 ignore = ["S101"]  # asserts are fine in tests
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]  # claim names like token_use are not passwords
+"tests/**" = ["S105", "S106", "E501"]  # claim names like token_use are not passwords

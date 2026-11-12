@@ -11,6 +11,7 @@ import {
   useInvestigate,
   useRequestRemediation,
 } from '@/modes/data-hooks';
+import { useMode } from '@/modes/mode-store';
 import { useCurrentRole } from '@/modes/session';
 import type { Incident, RemediationRequest, Role, Runbook } from '@/types/domain';
 
@@ -47,6 +48,8 @@ export function availableCommands(
   );
 }
 
+export const PHASE6_COMMANDS: readonly CommandKind[] = ['request', 'approve', 'reject'];
+
 export type SuccessMessages = Record<CommandKind, string>;
 
 const DEFAULT_MESSAGES: SuccessMessages = {
@@ -70,6 +73,7 @@ export function useIncidentCommands(
   messages: SuccessMessages = DEFAULT_MESSAGES,
 ) {
   const role = useCurrentRole();
+  const mode = useMode();
   const [open, setOpen] = useState<CommandKind | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [runbookId, setRunbookId] = useState<string>(runbooks[0]?.id ?? '');
@@ -143,6 +147,12 @@ export function useIncidentCommands(
     begin,
     cancel,
     submit,
-    available: availableCommands(incident, pendingRequest),
+    // Remediation in Live arrives in Phase 6; never offer an action the backend cannot do.
+    available: availableCommands(incident, pendingRequest).filter(
+      (k) => mode === 'demo' || !PHASE6_COMMANDS.includes(k),
+    ),
+    remediationPlannedInLive:
+      mode === 'live' &&
+      availableCommands(incident, pendingRequest).some((k) => PHASE6_COMMANDS.includes(k)),
   };
 }

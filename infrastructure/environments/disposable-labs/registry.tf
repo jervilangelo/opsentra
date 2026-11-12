@@ -91,6 +91,9 @@ locals {
       arn               = { S = aws_instance.web.arn }
       allowedRunbookIds = { L = [{ S = "rb-restart-nginx" }] }
       scenario          = { S = "nginx" }
+      severity          = { S = "HIGH" }
+      alarmNames        = { L = [{ S = aws_cloudwatch_metric_alarm.nginx.alarm_name }] }
+      alarmTitles       = { M = { (aws_cloudwatch_metric_alarm.nginx.alarm_name) = { S = "Nginx health check failing on the lab web server" } } }
       labExpiresAt      = { S = local.expires_at }
       health            = { S = "UNKNOWN" }
     }
@@ -102,6 +105,9 @@ locals {
       arn               = { S = aws_lambda_alias.live.arn }
       allowedRunbookIds = { L = [{ S = "rb-lambda-alias-rollback" }] }
       scenario          = { S = "lambda-regression" }
+      severity          = { S = "MEDIUM" }
+      alarmNames        = { L = [{ S = aws_cloudwatch_metric_alarm.regression_errors.alarm_name }] }
+      alarmTitles       = { M = { (aws_cloudwatch_metric_alarm.regression_errors.alarm_name) = { S = "Lab regression function is returning errors" } } }
       labExpiresAt      = { S = local.expires_at }
       health            = { S = "UNKNOWN" }
     }

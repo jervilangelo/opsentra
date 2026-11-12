@@ -129,9 +129,48 @@ describe('live data source fails closed', () => {
 
   it('features from later phases reject as not implemented', async () => {
     _setTokensForTest(fresh());
-    await expect(liveDataSource.listAudit()).rejects.toMatchObject({ reason: 'not-implemented' });
+    await expect(liveDataSource.listRunbooks()).rejects.toMatchObject({
+      reason: 'not-implemented',
+    });
     await expect(
       liveDataSource.startLab('nginx-outage', { idempotencyKey: 'k' }),
     ).rejects.toMatchObject({ reason: 'not-implemented' });
+  });
+
+  it('acknowledge sends POST, the idempotency key, version and reason, and never a role', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, {
+      data: { id: 'INC-1', state: 'ACKNOWLEDGED' },
+      meta: { dataset: 'live', generatedAt: 'x' },
+    });
+    await liveDataSource.acknowledgeIncident('INC-1', {
+      expectedVersion: 3,
+      reason: 'on it',
+      idempotencyKey: 'key-123',
+    });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://api.example.test/v1/incidents/INC-1/acknowledge');
+    const req = init as RequestInit;
+    expect(req.method).toBe('POST');
+    expect(req.headers).toMatchObject({
+      'idempotency-key': 'key-123',
+      'content-type': 'application/json',
+    });
+    expect(JSON.parse(String(req.body))).toEqual({ expectedVersion: 3, reason: 'on it' });
+  });
+
+  it('a 409 from a write keeps its code for the dialog', async () => {
+    _setTokensForTest(fresh());
+    respond(409, { error: { code: 'VERSION_CONFLICT', message: 'changed', requestId: 'r2' } });
+    await expect(
+      liveDataSource.closeIncident('INC-1', { expectedVersion: 1, idempotencyKey: 'k' }),
+    ).rejects.toMatchObject({ status: 409, code: 'VERSION_CONFLICT' });
+  });
+
+  it('reads the audit trail from the API', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, { data: [], meta: { dataset: 'live', generatedAt: 'x' } });
+    await liveDataSource.listAudit();
+    expect(spy.mock.calls[0]![0]).toBe('https://api.example.test/v1/audit');
   });
 });

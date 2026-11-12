@@ -36,6 +36,7 @@ module "api" {
   account_id         = var.account_id
   environment        = var.environment
   source_dir         = "${path.root}/../../../services/api/src"
+  extra_source_dirs  = ["${path.root}/../../../services/incidents/src"]
   build_dir          = "${path.root}/.build"
   jwt_issuer         = module.auth.issuer
   jwt_audience       = module.auth.client_ids
@@ -43,6 +44,27 @@ module "api" {
   read_tables = {
     for k in ["resources", "incidents", "audit"] :
     k => { name = module.tables.table_names[k], arn = module.tables.table_arns[k] }
+  }
+  write_tables = {
+    incidents    = { name = module.tables.table_names["incidents"], arn = module.tables.table_arns["incidents"] }
+    audit        = { name = module.tables.table_names["audit"], arn = module.tables.table_arns["audit"] }
+    correlations = { name = module.tables.table_names["active-correlations"], arn = module.tables.table_arns["active-correlations"] }
+  }
+}
+
+module "incidents" {
+  source      = "../../modules/incidents"
+  name_prefix = local.name_prefix
+  region      = var.region
+  account_id  = var.account_id
+  source_dir  = "${path.root}/../../../services/incidents/src"
+  build_dir   = "${path.root}/.build"
+  alert_email = var.alert_email
+  tables = {
+    incidents    = { name = module.tables.table_names["incidents"], arn = module.tables.table_arns["incidents"] }
+    audit        = { name = module.tables.table_names["audit"], arn = module.tables.table_arns["audit"] }
+    correlations = { name = module.tables.table_names["active-correlations"], arn = module.tables.table_arns["active-correlations"] }
+    resources    = { name = module.tables.table_names["resources"], arn = module.tables.table_arns["resources"] }
   }
 }
 

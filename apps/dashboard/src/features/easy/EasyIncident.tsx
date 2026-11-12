@@ -2,7 +2,11 @@ import { SkipForward } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog';
 import { IncidentStateBadge } from '@/components/status/badges';
-import { useIncidentCommands, type CommandKind } from '@/features/incidents/useIncidentCommands';
+import {
+  PHASE6_COMMANDS,
+  useIncidentCommands,
+  type CommandKind,
+} from '@/features/incidents/useIncidentCommands';
 import { usePreferences } from '@/stores/preferences';
 import type {
   Incident,
@@ -98,7 +102,15 @@ export function EasyIncident({
         <RecoveryPath steps={recoveryPath(incident, latest)} now={now} />
 
         <div className="flex flex-col gap-3 border-t pt-5">
-          {step.type === 'action' ? (
+          {step.type === 'action' &&
+          cmd.remediationPlannedInLive &&
+          PHASE6_COMMANDS.includes(step.kind) ? (
+            <p className="text-base">
+              The next step is to ask for a fix and approve it. In Live AWS Mode that arrives in
+              Phase 6; for now, the problem resolves on its own once Opsentra verifies the system is
+              healthy again.
+            </p>
+          ) : step.type === 'action' ? (
             <>
               <p className="text-base text-muted-foreground">{step.explain}</p>
               <div className="flex flex-wrap items-center gap-2">

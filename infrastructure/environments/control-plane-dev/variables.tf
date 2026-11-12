@@ -83,6 +83,13 @@ variable "monthly_budget_usd" {
   default = 5
 }
 
+variable "alert_email" {
+  description = "Incident alert email (SNS). terraform.tfvars only; empty means no subscriber."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "enable_integration_test_client" {
   type    = bool
   default = true

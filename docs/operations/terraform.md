@@ -127,7 +127,15 @@ aws ssm list-documents --filters Key=Owner,Values=Self Key=Name,Values=Opsentra-
 
 On Git Bash, set `MSYS_NO_PATHCONV=1` for AWS CLI arguments that start with `/`.
 
-## 6. Teardown (control plane)
+## 6. Incidents (Phase 5)
+
+- **Alert email:** set `alert_email` in the control-plane `terraform.tfvars` (gitignored). After the apply, AWS sends a "Subscription Confirmation" email; click the link or no alerts are delivered.
+- **Dead-letter queue:** events that fail ingest after retries land in `opsentra-dev-incident-ingest-dlq`. Inspect without removing them:
+  `aws sqs receive-message --queue-url $(aws sqs get-queue-url --queue-name opsentra-dev-incident-ingest-dlq --query QueueUrl --output text) --visibility-timeout 0`
+  The reconciler repairs missed ALARM and OK events within 5 minutes, so a DLQ entry is evidence to read, not something to replay by hand.
+- **Ingest test events** (gate test only, approval required): `aws lambda invoke --function-name opsentra-dev-incident-ingest --payload fileb://event.json out.json`.
+
+## 7. Teardown (control plane)
 
 ```bash
 cd infrastructure/environments/control-plane-dev

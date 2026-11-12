@@ -151,3 +151,21 @@ def overview(resources: list[dict[str, Any]], incidents: list[dict[str, Any]]) -
     if checked:
         out["lastSyncAt"] = checked[0]
     return out
+
+
+def audit_dto(item: Mapping[str, Any]) -> dict[str, Any]:
+    """An audit item as the frontend AuditEvent. No account IDs are stored in it."""
+    out: dict[str, Any] = {
+        "id": str(item.get("SK", "")),
+        "occurredAt": item.get("occurredAt", ""),
+        "actorType": "USER" if item.get("actorType") == "USER" else "SYSTEM",
+        "action": item.get("action") or item.get("eventType", "EVENT"),
+        "targetType": item.get("targetType", "INCIDENT"),
+        "targetId": item.get("targetId") or str(item.get("PK", "")).removeprefix("INCIDENT#"),
+        "correlationId": item.get("correlationId", ""),
+        "outcome": item.get("outcome", "SUCCESS"),
+        "detail": item.get("detail") if isinstance(item.get("detail"), dict) else {},
+    }
+    for key in ("actorId", "previousState", "newState"):
+        _opt(item, out, key)
+    return out

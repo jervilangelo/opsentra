@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, health-check]
+        service: [api, health-check, incidents]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}

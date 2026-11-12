@@ -14,6 +14,8 @@ on failure. Timestamps are ISO-8601 UTC. Errors never include stack traces.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 import os
@@ -155,8 +157,31 @@ def get_resource(event: Mapping[str, Any], request_id: str, resource_id: str = "
 
 
 def list_incidents(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
+    """Filters: state=ACTIVE|<STATE>, severity=<SEVERITY>; limit (1-200, default 50);
+    nextToken is an opaque offset returned by the previous page."""
     _viewer(event)
-    return ok(_incidents(), request_id)
+    q = event.get("queryStringParameters") or {}
+    rows = _incidents()
+    state = str(q.get("state", "")).upper()
+    if state == "ACTIVE":
+        rows = [r for r in rows if r["state"] in store.ACTIVE_STATES]
+    elif state:
+        rows = [r for r in rows if r["state"] == state]
+    severity = str(q.get("severity", "")).upper()
+    if severity:
+        rows = [r for r in rows if r["severity"] == severity]
+    try:
+        limit = max(1, min(200, int(q.get("limit", 50))))
+        offset = int(base64.urlsafe_b64decode(str(q["nextToken"]).encode()).decode()) if q.get("nextToken") else 0
+    except (ValueError, TypeError, binascii.Error) as err:
+        raise BadRequest("Invalid limit or nextToken.") from err
+    page = rows[offset : offset + limit]
+    resp = ok(page, request_id)
+    if offset + limit < len(rows):
+        body = json.loads(resp["body"])
+        body["meta"]["nextToken"] = base64.urlsafe_b64encode(str(offset + limit).encode()).decode()
+        resp = _json(200, body)
+    return resp
 
 
 def get_incident(event: Mapping[str, Any], request_id: str, incident_id: str = "", **_: str) -> Response:
@@ -176,6 +201,67 @@ def incident_timeline(event: Mapping[str, Any], request_id: str, incident_id: st
     return ok(events, request_id)
 
 
+class BadRequest(Exception):
+    pass
+
+
+_incident_store: Any = None
+
+
+def incident_store() -> Any:
+    """Writer for incident actions (opsentra_incidents.core), created lazily."""
+    global _incident_store
+    if _incident_store is None:
+        import boto3
+        from opsentra_incidents import core
+
+        _incident_store = core.Store(boto3.client("dynamodb"), core.Tables.from_env())
+    return _incident_store
+
+
+def set_incident_store(s: Any) -> None:
+    global _incident_store
+    _incident_store = s
+
+
+def _incident_action(command: str) -> Callable[..., Response]:
+    def action(event: Mapping[str, Any], request_id: str, incident_id: str = "", **_: str) -> Response:
+        from opsentra_incidents import core
+
+        claims, role = require_identity(event)
+        headers = {str(k).lower(): v for k, v in (event.get("headers") or {}).items()}
+        try:
+            body = json.loads(event.get("body") or "{}")
+            if not isinstance(body, dict):
+                raise ValueError
+        except ValueError as err:
+            raise BadRequest("The body must be a JSON object.") from err
+        try:
+            result = core.user_transition(
+                incident_store(),
+                incident_id=incident_id,
+                command=command,
+                role=role,  # from verified claims only; any role in the body is ignored
+                actor=str(claims.get("username") or claims.get("sub")),
+                expected_version=body.get("expectedVersion"),
+                reason=body.get("reason") if isinstance(body.get("reason"), str) else None,
+                idempotency_key=headers.get("idempotency-key"),
+            )
+        except core.IncidentError as err:
+            return error(err.status, err.code, err.message, request_id)
+        return ok(store.incident_dto(result["incident"]), request_id)
+
+    return action
+
+
+def list_audit(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
+    _, role = require_identity(event)
+    require_role(role, "ADMIN")  # full audit is admin-only (§4.2, §5.2)
+    items = [i for i in get_store().scan(store.tables()["audit"]) if str(i.get("PK", "")).startswith("INCIDENT#")]
+    rows = sorted((store.audit_dto(i) for i in items), key=lambda a: a["id"], reverse=True)
+    return ok(rows[:200], request_id)
+
+
 _ID = r"([A-Za-z0-9._:-]{1,128})"
 
 ROUTES: list[tuple[str, re.Pattern[str], Callable[..., Response], tuple[str, ...]]] = [
@@ -187,6 +273,10 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[..., Response], tuple[str, ...
     ("GET", re.compile(r"^/v1/incidents$"), list_incidents, ()),
     ("GET", re.compile(rf"^/v1/incidents/{_ID}$"), get_incident, ("incident_id",)),
     ("GET", re.compile(rf"^/v1/incidents/{_ID}/timeline$"), incident_timeline, ("incident_id",)),
+    ("POST", re.compile(rf"^/v1/incidents/{_ID}/acknowledge$"), _incident_action("acknowledge"), ("incident_id",)),
+    ("POST", re.compile(rf"^/v1/incidents/{_ID}/investigate$"), _incident_action("investigate"), ("incident_id",)),
+    ("POST", re.compile(rf"^/v1/incidents/{_ID}/close$"), _incident_action("close"), ("incident_id",)),
+    ("GET", re.compile(r"^/v1/audit$"), list_audit, ()),
 ]
 
 
@@ -215,6 +305,8 @@ def lambda_handler(event: Mapping[str, Any], context: Any) -> Response:
         response = error(exc.status, exc.code, exc.message, request_id)
     except NotFound as exc:
         response = error(404, "NOT_FOUND", str(exc), request_id)
+    except BadRequest as exc:
+        response = error(400, "VALIDATION", str(exc), request_id)
     except Exception:  # noqa: BLE001 — never leak internals to the caller
         logger.exception(json.dumps({"msg": "unhandled", "requestId": request_id}))
         response = error(500, "INTERNAL", "Something went wrong.", request_id)

@@ -20,6 +20,12 @@ mock_provider "aws" {
       invoke_arn = "arn:aws:apigateway:ap-southeast-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-southeast-1:111122223333:function:mock/invocations"
     }
   }
+  mock_resource "aws_sqs_queue" {
+    defaults = { arn = "arn:aws:sqs:ap-southeast-1:111122223333:mock-dlq" }
+  }
+  mock_resource "aws_sns_topic" {
+    defaults = { arn = "arn:aws:sns:ap-southeast-1:111122223333:mock-topic" }
+  }
   mock_resource "aws_apigatewayv2_api" {
     defaults = {
       api_endpoint  = "https://mock.execute-api.ap-southeast-1.amazonaws.com"
@@ -59,8 +65,8 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
-    condition     = length(module.api.route_authorization) == 8 && alltrue([for k, v in module.api.route_authorization : startswith(k, "GET ")])
-    error_message = "Phase 4 exposes exactly eight GET routes; no write routes yet."
+    condition     = length(module.api.route_authorization) == 12 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
+    error_message = "Phase 5 exposes twelve routes and every write route needs a JWT."
   }
   assert {
     condition     = module.api.throttling.burst <= 10 && module.api.throttling.rate <= 5
@@ -78,10 +84,10 @@ run "lambda_role_is_least_privilege" {
   assert {
     condition = alltrue(flatten([
       for s in module.api.lambda_policy.Statement : [
-        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"], a)
+        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"], a)
       ]
     ]))
-    error_message = "The API Lambda may only write its logs and read tables (no DynamoDB writes until Phase 5)."
+    error_message = "The API Lambda may write its logs, read tables and make conditional writes; nothing else."
   }
   assert {
     condition     = !anytrue([for s in module.api.lambda_policy.Statement : s.Resource == "*"])
@@ -205,4 +211,33 @@ run "other_regions_are_rejected" {
   }
 
   expect_failures = [var.region]
+}
+
+run "incident_pipeline_guardrails" {
+  command = apply # mocked: nothing is created
+
+  assert {
+    condition = !anytrue(flatten([
+      for p in [module.incidents.ingest_policy, module.incidents.reconciler_policy, module.api.lambda_policy] : [
+        for st in p.Statement : [for a in st.Action : strcontains(lower(a), "delete")]
+      ]
+    ]))
+    error_message = "No principal may delete items: the audit trail is append-only."
+  }
+  assert {
+    condition     = module.incidents.has_dlq
+    error_message = "Failed ingest events must land in the DLQ."
+  }
+  assert {
+    condition     = module.incidents.reconcile_schedule == "rate(5 minutes)"
+    error_message = "The reconciler runs every 5 minutes."
+  }
+  assert {
+    condition     = one([for st in module.incidents.reconciler_policy.Statement : st.Resource if st.Sid == "DescribeLabAlarms"]) == "arn:aws:cloudwatch:ap-southeast-1:111122223333:alarm:opsentra-lab-*"
+    error_message = "The reconciler may only describe lab alarms."
+  }
+  assert {
+    condition     = alltrue([for st in module.incidents.ingest_policy.Statement : st.Resource != "*" || st.Sid == "UseAwsManagedSnsKey"])
+    error_message = "Only the KMS via-SNS statement may use a wildcard resource."
+  }
 }

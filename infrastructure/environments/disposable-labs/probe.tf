@@ -218,6 +218,25 @@ resource "aws_cloudwatch_event_target" "alarm_logs" {
   arn  = aws_cloudwatch_log_group.alarm_events.arn
 }
 
+# Phase 5: the same alarm events also go to the incident ingest Lambda.
+resource "aws_cloudwatch_event_target" "alarm_ingest" {
+  rule = aws_cloudwatch_event_rule.alarm_state.name
+  arn  = local.ingest_function_arn
+
+  retry_policy {
+    maximum_retry_attempts       = 4
+    maximum_event_age_in_seconds = 3600
+  }
+}
+
+resource "aws_lambda_permission" "events_to_ingest" {
+  statement_id  = "AllowLabAlarmRule"
+  action        = "lambda:InvokeFunction"
+  function_name = local.ingest_function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.alarm_state.arn # only this rule
+}
+
 resource "aws_cloudwatch_log_resource_policy" "events_to_logs" {
   policy_name = "${local.name}-events-to-logs"
   policy_document = jsonencode({
