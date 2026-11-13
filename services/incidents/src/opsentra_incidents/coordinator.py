@@ -10,14 +10,13 @@ always come from the stored request and the registry, never from the event.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
 from collections.abc import Mapping
 from typing import Any
 
-from . import core, remediation
+from . import core, obs, remediation
 
 logger = logging.getLogger("opsentra-remediation-coordinator")
 logger.setLevel(logging.INFO)
@@ -43,6 +42,7 @@ def handle(event: Any, store: core.Store, ssm: Any, ec2: Any, account: str, regi
 def lambda_handler(event: Any, context: Any) -> dict[str, str]:
     import boto3
 
+    obs.bind(context)
     store = core.Store(boto3.client("dynamodb"), core.Tables.from_env())
     out = handle(
         event,
@@ -52,5 +52,14 @@ def lambda_handler(event: Any, context: Any) -> dict[str, str]:
         os.environ["ACCOUNT_ID"],
         os.environ["AWS_REGION"],
     )
-    logger.info(json.dumps({"msg": "coordinator", **out}))
+    detail = event.get("detail") if isinstance(event, Mapping) and isinstance(event.get("detail"), Mapping) else {}
+    obs.info(
+        logger,
+        "coordinator",
+        trigger="ssm-status" if isinstance(event, Mapping) and event.get("source") == "aws.ssm" else "approval",
+        requestId=event.get("requestId") if isinstance(event, Mapping) else None,
+        commandId=detail.get("command-id"),
+        ssmStatus=detail.get("status"),
+        **out,
+    )
     return out

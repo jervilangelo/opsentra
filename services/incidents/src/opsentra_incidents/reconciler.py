@@ -17,13 +17,12 @@ It never resolves on a timeout or on missing data.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import Mapping
 from typing import Any
 
-from . import core, ingest, lab, remediation
+from . import core, ingest, lab, obs, remediation
 from .ingest import correlation_key
 
 logger = logging.getLogger("opsentra-incident-reconciler")
@@ -60,7 +59,7 @@ def run(
         try:
             report |= remediation.reconcile(store, ssm, ec2)
         except Exception:  # noqa: BLE001
-            logger.exception("remediation reconcile failed")
+            obs.error(logger, "remediation reconcile failed")
             report["errors"] = report.get("errors", 0) + 1
 
     # 1. Repair missed ALARM events.
@@ -88,7 +87,7 @@ def run(
                 if incident:
                     ingest.notify(topic_arn, incident)
             except Exception:  # noqa: BLE001
-                logger.exception("notification failed")
+                obs.error(logger, "notification failed", incidentId=out.incident_id)
 
     # 2 and 3. Active incidents: missed OK, then verified self-heal.
     registry_by_id = {r["resourceId"]: r for r in registry}
@@ -96,7 +95,7 @@ def run(
         try:
             _active(store, corr, states, registry_by_id, report)
         except Exception:  # noqa: BLE001 - one bad incident must not block the rest
-            logger.exception("reconcile failed for %s", corr.get("activeIncidentId"))
+            obs.error(logger, "reconcile failed", incidentId=corr.get("activeIncidentId"))
             report["errors"] = report.get("errors", 0) + 1
 
     # 6. Simulation Lab watchdog, after incidents so a resolution ends its run.
@@ -104,7 +103,7 @@ def run(
         try:
             report |= lab.watchdog(store, ssm, ec2)
         except Exception:  # noqa: BLE001
-            logger.exception("lab watchdog failed")
+            obs.error(logger, "lab watchdog failed")
             report["errors"] = report.get("errors", 0) + 1
     return report
 
@@ -147,6 +146,7 @@ def _active(
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     import boto3
 
+    obs.bind(context)
     store = core.Store(boto3.client("dynamodb"), core.Tables.from_env())
     report = run(
         store,
@@ -157,5 +157,5 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         boto3.client("ssm"),
         boto3.client("ec2"),
     )
-    logger.info(json.dumps({"msg": "reconcile", **report}))
+    obs.info(logger, "reconcile", **report)
     return report

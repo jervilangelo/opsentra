@@ -493,5 +493,12 @@ output "coordinator_policy" { value = local.coordinator_policy }
 output "lab_controller_function_arn" { value = aws_lambda_function.lab.arn }
 output "lab_controller_function_name" { value = aws_lambda_function.lab.function_name }
 output "lab_controller_policy" { value = local.lab_controller_policy }
+output "function_names" {
+  value = [aws_lambda_function.ingest.function_name, aws_lambda_function.reconciler.function_name, aws_lambda_function.coordinator.function_name, aws_lambda_function.lab.function_name]
+}
+output "dlq_names" { value = [aws_sqs_queue.ingest_dlq.name, aws_sqs_queue.coordinator_dlq.name] }
+output "log_group_names" {
+  value = [aws_cloudwatch_log_group.ingest.name, aws_cloudwatch_log_group.reconciler.name, aws_cloudwatch_log_group.coordinator.name, aws_cloudwatch_log_group.lab.name]
+}
 output "coordinator_has_dlq" { value = aws_lambda_function.coordinator.dead_letter_config[0].target_arn == aws_sqs_queue.coordinator_dlq.arn }
 output "has_dlq" { value = aws_lambda_function.ingest.dead_letter_config[0].target_arn == aws_sqs_queue.ingest_dlq.arn }

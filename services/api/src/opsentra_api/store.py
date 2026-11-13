@@ -125,7 +125,7 @@ def incident_dto(item: Mapping[str, Any]) -> dict[str, Any]:
         "openedAt": item.get("openedAt", ""),
         "version": int(item.get("version", 1)),
     }
-    for key in ("detectedAt", "acknowledgedAt", "verifiedHealthyAt", "resolvedAt", "runbookId"):
+    for key in ("detectedAt", "acknowledgedAt", "verifiedHealthyAt", "resolvedAt", "runbookId", "alarmName"):
         _opt(item, out, key)
     return out
 

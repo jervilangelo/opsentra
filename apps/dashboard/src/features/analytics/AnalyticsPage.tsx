@@ -6,11 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDuration } from '@/domain/analytics';
 import { QueryBoundary } from '@/features/common/QueryBoundary';
+import { ExportButtons, InvestigationLinks } from '@/features/reports/ReportPanel';
+import {
+  analyticsCsv,
+  analyticsReport,
+  DEFINITIONS as REPORT_DEFINITIONS,
+  download,
+  reportFileName,
+} from '@/features/reports/report';
+import { useMode } from '@/modes/mode-store';
 import { useAnalytics, useOverview } from '@/modes/data-hooks';
 import { SEVERITY_DISPLAY } from '@/types/display';
 import type { AnalyticsSummary, MeanDuration, Severity } from '@/types/domain';
 
-const RANGES = [7, 30, 90] as const;
+const RANGES = [1, 7, 30, 90] as const;
 const SEVERITIES: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 function Tile({
@@ -36,8 +45,49 @@ function Tile({
 }
 
 function meanNote(m: MeanDuration, excludedWhat: string): string {
-  const n = `n = ${m.count}`;
-  return m.excluded > 0 ? `${n} · ${m.excluded} excluded (${excludedWhat})` : n;
+  const parts = [`n = ${m.count}`];
+  if (m.medianSeconds !== undefined) parts.push(`median ${formatDuration(m.medianSeconds)}`);
+  if (m.p90Seconds !== undefined) parts.push(`p90 ${formatDuration(m.p90Seconds)}`);
+  if (m.excluded > 0) parts.push(`${m.excluded} excluded (${excludedWhat})`);
+  return parts.join(' · ');
+}
+
+function Availability({ data }: { data: AnalyticsSummary }) {
+  const a = data.availability;
+  if (!a) {
+    return (
+      <p>
+        <span className="font-medium">Unknown.</span>{' '}
+        <span className="text-muted-foreground">
+          No probe data in this range, so there is no honest availability figure. It is not shown as
+          0 % or 100 %.
+        </span>
+      </p>
+    );
+  }
+  const pct = ((a.healthyProbes / a.totalProbes) * 100).toFixed(2);
+  const coverage = a.expectedProbes ? (a.totalProbes / a.expectedProbes) * 100 : undefined;
+  // With partial coverage the figure describes probed minutes only, not the range.
+  const partial = coverage !== undefined && coverage < 90;
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-data text-3xl">
+        {pct} %
+        {partial ? (
+          <span className="ml-2 font-sans text-sm font-normal text-muted-foreground">
+            of probed minutes only
+          </span>
+        ) : null}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {a.healthyProbes} healthy of {a.totalProbes} probes received
+        {coverage !== undefined
+          ? ` · probes cover ${coverage < 1 ? coverage.toFixed(1) : Math.round(coverage)} % of the ${a.expectedProbes} minutes in range; the rest is unknown`
+          : ''}
+        . Nginx over HTTP, not EC2 running.
+      </p>
+    </div>
+  );
 }
 
 function SeverityBars({ data }: { data: AnalyticsSummary }) {
@@ -69,6 +119,7 @@ function SeverityBars({ data }: { data: AnalyticsSummary }) {
 }
 
 function AnalyticsContent() {
+  const mode = useMode();
   const [days, setDays] = useState<(typeof RANGES)[number]>(30);
   const rangeId = useId();
   const overview = useOverview();
@@ -91,14 +142,42 @@ function AnalyticsContent() {
         >
           {RANGES.map((d) => (
             <option key={d} value={d}>
-              Last {d} days
+              {d === 1 ? 'Last 24 hours' : `Last ${d} days`}
             </option>
           ))}
         </select>
         {analytics.data ? (
-          <Badge variant="outline" className="text-muted-foreground">
-            Dataset: {analytics.data.meta.dataset}
-          </Badge>
+          <>
+            <Badge variant="outline" className="text-muted-foreground">
+              Dataset: {analytics.data.meta.dataset}
+            </Badge>
+            <ExportButtons
+              onJson={() => {
+                const r = analyticsReport(
+                  mode,
+                  analytics.data.data,
+                  analytics.data.meta.generatedAt,
+                );
+                download(
+                  reportFileName(mode, `analytics-${days}d`, 'json'),
+                  'application/json',
+                  JSON.stringify(r, null, 2),
+                );
+              }}
+              onCsv={() => {
+                const r = analyticsReport(
+                  mode,
+                  analytics.data.data,
+                  analytics.data.meta.generatedAt,
+                );
+                download(
+                  reportFileName(mode, `analytics-${days}d`, 'csv'),
+                  'text/csv',
+                  analyticsCsv(r),
+                );
+              }}
+            />
+          </>
         ) : null}
       </div>
 
@@ -137,9 +216,42 @@ function AnalyticsContent() {
                       ? '—'
                       : `${data.runbooks.succeeded} / ${data.runbooks.total}`
                   }
-                  note={`${data.runbooks.failed} failed · ${data.runbooks.rejected} rejected or expired`}
+                  note={`${data.runbooks.failed} failed · ${data.runbooks.rejected} rejected or expired · SSM success is not recovery`}
                 />
               </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recovery outcomes</CardTitle>
+                  <CardDescription>
+                    How each verified recovery was proven, from its health-check evidence.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  {data.recoveries ? (
+                    <ul className="flex flex-wrap gap-x-8 gap-y-2">
+                      <li>
+                        <span className="font-data text-2xl">{data.recoveries.afterRunbook}</span>{' '}
+                        after an approved runbook
+                      </li>
+                      <li>
+                        <span className="font-data text-2xl">{data.recoveries.selfHealed}</span>{' '}
+                        self-healed (alarm cleared, then verified)
+                      </li>
+                      {data.recoveries.unknown > 0 ? (
+                        <li>
+                          <span className="font-data text-2xl">{data.recoveries.unknown}</span>{' '}
+                          without recorded evidence type
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Not tracked in Demo Mode. Live Mode reads it from the HEALTH_VERIFIED evidence
+                      of each incident.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
               <div className="grid gap-4 lg:grid-cols-2">
                 <Card>
                   <CardHeader>
@@ -156,26 +268,26 @@ function AnalyticsContent() {
                     <CardDescription>Healthy probes ÷ valid probes.</CardDescription>
                   </CardHeader>
                   <CardContent className="text-sm">
-                    {data.availability ? (
-                      <p className="font-data text-3xl">
-                        {(
-                          (data.availability.healthyProbes / data.availability.totalProbes) *
-                          100
-                        ).toFixed(2)}{' '}
-                        %
-                      </p>
-                    ) : (
-                      <p>
-                        <span className="font-medium">Unknown.</span>{' '}
-                        <span className="text-muted-foreground">
-                          Demo Mode does not simulate continuous probing, so there is no honest
-                          availability figure to show.
-                        </span>
-                      </p>
-                    )}
+                    <Availability data={data} />
                   </CardContent>
                 </Card>
               </div>
+              {data.dataQuality?.length ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Data quality</CardTitle>
+                    <CardDescription>What these numbers do not include, and why.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
+                      {data.dataQuality.map((n) => (
+                        <li key={n}>{n}</li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ) : null}
+              <InvestigationLinks />
             </>
           )}
         </QueryBoundary>
@@ -184,21 +296,8 @@ function AnalyticsContent() {
   );
 }
 
-/** Metric definitions from blueprint §4.5. */
-const DEFINITIONS = [
-  {
-    term: 'MTTA',
-    text: 'Mean of acknowledgedAt − detectedAt for acknowledged incidents. Unacknowledged incidents are excluded and counted.',
-  },
-  {
-    term: 'MTTR',
-    text: 'Mean of verifiedHealthyAt − detectedAt for incidents whose recovery was verified by health checks. Runbook completion time is not used.',
-  },
-  {
-    term: 'Availability',
-    text: 'Healthy probes ÷ valid probes in the range. EC2 running is not the same as Nginx available.',
-  },
-];
+/** Metric definitions from blueprint §4.5, shared with the exports. */
+const DEFINITIONS = Object.entries(REPORT_DEFINITIONS).map(([term, text]) => ({ term, text }));
 
 export function AnalyticsPage() {
   return (

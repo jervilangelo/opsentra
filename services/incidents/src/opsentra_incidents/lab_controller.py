@@ -11,12 +11,11 @@ Returns {"status": 200, "data": ...} or {"status": n, "error": {code, message}}.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Mapping
 from typing import Any
 
-from . import core, lab
+from . import core, lab, obs
 
 logger = logging.getLogger("opsentra-lab-controller")
 logger.setLevel(logging.INFO)
@@ -62,15 +61,24 @@ def handle(event: Any, store: core.Store, ssm: Any, ec2: Any) -> dict[str, Any]:
             try:
                 lab.record_denied(store, lab.CATALOG[scenario_id], f"LAB_{command.upper()}", actor, role, err.code)
             except Exception:  # noqa: BLE001 - the refusal stands even if the audit write fails
-                logger.exception("denied-audit failed")
+                obs.error(logger, "denied-audit failed", scenarioId=scenario_id)
         return _err(err.status, err.code, err.message)
 
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     import boto3
 
+    obs.bind(context)
     store = core.Store(boto3.client("dynamodb"), core.Tables.from_env())
     out = handle(event, store, boto3.client("ssm"), boto3.client("ec2"))
-    log = {"msg": "lab-controller", "command": event.get("command") if isinstance(event, Mapping) else None}
-    logger.info(json.dumps({**log, "status": out["status"], "code": out.get("error", {}).get("code")}))
+    ev = event if isinstance(event, Mapping) else {}
+    obs.info(
+        logger,
+        "lab-controller",
+        command=ev.get("command"),
+        scenarioId=ev.get("scenarioId"),
+        actor=ev.get("actor"),
+        status=out["status"],
+        code=out.get("error", {}).get("code"),
+    )
     return out

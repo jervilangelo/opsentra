@@ -10,8 +10,8 @@ import { accessToken, signOut, useLiveAuth } from './auth';
  * Live AWS Mode data source: the authenticated Opsentra API (§4.2).
  *
  * Fails closed. Any missing configuration, missing sign-in, network failure or
- * HTTP error rejects; nothing here can return synthetic data. Methods whose
- * backend arrives in a later phase reject with `not-implemented`.
+ * HTTP error rejects; nothing here can return synthetic data. Every method has
+ * a backend route (Phase 8 added the last one, GET /v1/analytics).
  * This module must never import Demo Mode code (enforced by ESLint).
  */
 
@@ -25,11 +25,6 @@ export function getLiveStatus(signedIn = useLiveAuth.getState().signedIn): LiveS
   if (!signedIn) return { available: false, reason: 'signed-out' };
   return { available: true };
 }
-
-const later = (phase: string) => (): Promise<never> =>
-  Promise.reject(
-    new LiveUnavailableError('not-implemented', `This part of Live AWS Mode arrives in ${phase}.`),
-  );
 
 /** Backoff before each retry of a throttled or unreachable request. */
 export const RETRY_DELAYS_MS: readonly number[] = [700, 1500];
@@ -120,7 +115,7 @@ export const liveDataSource: DataSource = {
   listRunbooks: () => get('/v1/runbooks'),
   listRemediations: (incidentId) =>
     get(`/v1/remediations${incidentId ? `?incidentId=${enc(incidentId)}` : ''}`),
-  getAnalytics: later('Phase 8'),
+  getAnalytics: ({ from, to }) => get(`/v1/analytics?from=${enc(from)}&to=${enc(to)}`),
   listAudit: () => get('/v1/audit'),
   listLabs: () => get('/v1/labs'),
   acknowledgeIncident: (id, input) =>

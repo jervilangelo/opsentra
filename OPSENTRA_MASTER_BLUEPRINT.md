@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.9.1 (Phases 1–7 complete)  
+> **Version:** 1.10.0 (Phases 1–7 complete; Phase 8 built, live gate run, owner review pending)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation) and 7 (Live Simulation Lab) passed their live gates and were approved by the owner on 2026-11-13. Phase 8 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
@@ -48,6 +48,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
 | ADR-015 | Phase 4 lab design and Live adapter | Agreed (2026-11-12) | Own VPC, HTTP-only probe target, self-terminating lab with required expiry, self-disabling probe, registry via Terraform, PKCE sign-in, `VITE_COGNITO_DOMAIN`. See `docs/adr/ADR-015-phase4-lab-and-live-adapter.md`. |
 | ADR-016 | Incident pipeline | Agreed (2026-11-12) | Validated ingest, `EVENT#` dedup, correlation transaction, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS once per incident, DLQ. See `docs/adr/ADR-016-incident-pipeline.md`. |
+| ADR-019 | Live analytics, reports and observability | Agreed (2026-11-13) | Shared §4.5 definitions (Live = Demo, halves rounded up, median n ≥ 3, p90 n ≥ 10); `GET /v1/analytics`; availability from probe SampleCount with coverage, unknown when absent; recovery outcomes from HEALTH_VERIFIED evidence; sanitized JSON/CSV exports; structured log IDs; CloudWatch dashboard; API may read metric statistics (only wildcard). See `docs/adr/ADR-019-analytics-and-observability.md`. |
 | ADR-018 | Live Simulation Lab and guardrails | Agreed (2026-11-13) | Scenario A live, B/C planned; lab-controller Lambda (API keeps no SSM/EC2 rights); hash-pinned injection; preflight, confirmation, one-run lock, 5-min cooldown, 45-min run limit; watchdog in the reconciler; reset never resolves; read-only teardown verifier. See `docs/adr/ADR-018-live-simulation-lab.md`. |
 | ADR-017 | Approved remediation | Agreed (2026-11-12) | Hash-pinned runbooks, request/decision, self-approval flagged, coordinator lock (one command per approval), SSM status events, 3-healthy-probe verification, denied attempts audited. See `docs/adr/ADR-017-approved-remediation.md`. |
 
@@ -181,6 +182,8 @@ interface OverviewSummary {
 Success payloads are wrapped as `{data, meta}`; `meta.dataset` is `'synthetic'` or `'live'` so a view can prove which dataset it shows.
 
 **v1.3.0 (ADR-012):** `ResourceSummary.type` adds `'SECURITY_GROUP'`; new DTOs `Runbook`, `AuditEvent`, `LabScenario`, `AnalyticsSummary`, `Role`, and typed mutation inputs (`MutationGuard {expectedVersion, idempotencyKey}` plus `reason`/`runbookId`/`decision` where applicable). Identity and role are never request fields. Full shapes in ADR-012 and `apps/dashboard/src/types/domain.ts`.
+
+**v1.10.0 (ADR-019):** `Incident` adds optional `alarmName`. `MeanDuration` adds optional `medianSeconds` (n ≥ 3) and `p90Seconds` (n ≥ 10). `AnalyticsSummary` adds optional `recoveries {afterRunbook, selfHealed, unknown}` (Live only), `availability.expectedProbes` (minutes in range, for coverage) and `dataQuality: string[]`.
 
 **v1.9.0 (ADR-018):** `LabScenario` adds optional `preflight` (`LabPreflightCheck {id, label, ok, detail?}[]`), `activeRun` / `lastRun` (`LabRun {runId, scenarioId, resourceId, status: LabRunStatus, injection, startedAt, startedBy, expiresAt, incidentId?, endedAt?, endedBy?, endReason?}`), `cooldownUntil` and `labExpiresAt`. `LabRunStatus` is `ACTIVE | COMPLETED | RESET | EXPIRED | FAILED`. New input `ResetLabInput {idempotencyKey}`. `AuditEvent.targetType` `'LAB'` is now used.
 
@@ -321,6 +324,8 @@ sequenceDiagram
 | POST | `/v1/labs/{scenarioId}/start` | Admin | Validate lab tag/ARN; preflight, quota, cooldown, confirmation. |
 | POST | `/v1/labs/{scenarioId}/reset` | Admin | Safe cleanup/reset; no arbitrary targets. |
 
+**v1.10.0 (ADR-019):** `GET /v1/analytics?from&to` is implemented (Viewer+; default 30 days, max 92, ISO-8601 with offset; 400 `VALIDATION` otherwise).
+
 **v1.9.0 (ADR-018):** the three lab routes are implemented. `start` needs `acknowledgeImpact: true` and an `Idempotency-Key`; the body carries nothing else. Refusals: 400 `CONFIRMATION_REQUIRED`, 403 `FORBIDDEN`, 404 unknown scenario, 409 `LAB_BUSY` / `PREFLIGHT_FAILED` / `LAB_NOT_DEPLOYED`, 502 `LAB_INJECTION_FAILED` / `LAB_RESET_FAILED`, 503 `LAB_UNAVAILABLE`. Reset ends the run but never resolves an incident.
 | GET | `/v1/health` | Public minimal | Non-sensitive API heartbeat; no resource discovery. |
 
@@ -375,6 +380,7 @@ Invariants:
 - **MTTA:** mean(`acknowledgedAt - detectedAt`) for acknowledged incidents; explicitly exclude unacknowledged cases and show count.
 - **MTTR (recovery):** mean(`verifiedHealthyAt - detectedAt`) for recovered incidents, not simply runbook finished time. Display denominator, percentiles where data supports them, and whether dataset is synthetic or live.
 - **Availability:** healthy probes / total valid probes within a defined range; distinguish EC2 running from Nginx service availability.
+- **v1.10.0 (ADR-019):** median when n ≥ 3, p90 (nearest rank) when n ≥ 10; durations rounded halves up in Live and Demo alike. Availability counts probes *received*; with no probes it is unknown (omitted), and coverage below 90 % is annotated. Recovery outcomes (runbook vs self-heal) come from the `HEALTH_VERIFIED` evidence.
 
 ---
 
@@ -557,6 +563,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 **Deliverables:** analytics page, incident report export, engineering investigation links and data-quality annotations.
 
 **Gate:** numbers reconciled with source events; synthetic and live datasets are never mixed in the same reporting view; missing signals shown as unknown rather than zero failure.
+
+**Status (2026-11-13):** built, deployed and gate-tested live (ADR-019); owner review pending: see `docs/phases/phase-8-checkpoint.md`. Printable HTML report and tracing not built (optional).
 
 ### Phase 9 — Security hardening, testing, optimization
 
@@ -931,5 +939,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.8.1 | 2026-11-13 | Fixes from Phase 6 live run 1: escalation writes used invalid `SET …, REMOVE` syntax (moto accepted it, DynamoDB did not); verification now counts probes from `max(streak start, command completed)`; the reconciler isolates errors per incident and request. No scope change. |
 | 1.9.0 | 2026-11-13 | ADR-018: Live Simulation Lab (Scenario A live; lab-controller Lambda; hash-pinned injection; preflight, confirmation, lock, cooldown, run limit; watchdog; reset never resolves; teardown verifier); `lab-runs` table; `LabScenario`/`LabRun` DTO additions; three lab routes implemented. Phase 6 and 7 live gates pending. |
 | 1.9.1 | 2026-11-13 | Phases 6 and 7 gates passed live and approved by the owner; §16 checklist updated with verified items only. Live gate fixes: recursive Decimal conversion in API responses; Live client retries throttled/unreachable requests with the same Idempotency-Key. |
+| 1.10.0 | 2026-11-13 | ADR-019: Live analytics (`GET /v1/analytics`, same definitions as Demo, percentiles, recovery outcomes, probe coverage, data-quality notes), sanitized JSON/CSV exports, structured log IDs, CloudWatch operations dashboard and investigation links; API may read metric statistics. Phase 8 live gate run; owner review pending. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 6–7 COMPLETE; Phase 8 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 6–7 COMPLETE; Phase 8 built, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

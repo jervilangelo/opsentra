@@ -1,0 +1,47 @@
+{
+  "schema": "opsentra.report/v1",
+  "dataset": "synthetic",
+  "label": "DEMO — SYNTHETIC DATA",
+  "generatedAt": "2026-11-10T03:20:00.000Z",
+  "definitions": {
+    "MTTA": "Mean of acknowledgedAt − detectedAt over acknowledged incidents; unacknowledged ones are excluded and counted.",
+    "MTTR": "Mean of verifiedHealthyAt − detectedAt over incidents whose recovery was verified by health checks; runbook completion is not used.",
+    "Availability": "Healthy probes ÷ probes received in the range (Nginx over HTTP, not EC2 running). Minutes without a probe are unknown.",
+    "Percentiles": "Median when n ≥ 3; p90 (nearest rank) when n ≥ 10."
+  },
+  "summary": {
+    "from": "2026-10-11T03:20:00.000Z",
+    "to": "2026-11-10T03:20:00.000Z",
+    "incidentCount": 6,
+    "bySeverity": {
+      "CRITICAL": 1,
+      "HIGH": 2,
+      "MEDIUM": 2,
+      "LOW": 1
+    },
+    "active": 0,
+    "escalated": 0,
+    "mtta": {
+      "meanSeconds": 164,
+      "count": 5,
+      "excluded": 1,
+      "medianSeconds": 149
+    },
+    "mttr": {
+      "meanSeconds": 1325,
+      "count": 6,
+      "excluded": 0,
+      "medianSeconds": 1151
+    },
+    "runbooks": {
+      "succeeded": 4,
+      "failed": 1,
+      "rejected": 1,
+      "total": 6
+    },
+    "dataQuality": [
+      "Availability is unknown: Demo Mode does not simulate continuous probing.",
+      "1 incident(s) were never acknowledged and are excluded from MTTA."
+    ]
+  }
+}

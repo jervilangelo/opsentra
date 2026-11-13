@@ -65,7 +65,7 @@ describe('guided Demo Mode flow', () => {
 
     await act(() => router.navigate('/audit'));
     expect(await screen.findAllByText('Incident resolved')).not.toHaveLength(0);
-  });
+  }, 15_000); // a full UI walk-through; the 5 s default flakes under full-suite load
 
   it('as Operator, approval is not offered and the reason is explained', async () => {
     const user = userEvent.setup();

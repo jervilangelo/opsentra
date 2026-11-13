@@ -125,6 +125,7 @@ locals {
     "GET /v1/remediations/{requestId}"                    = { protected = true }
     "GET /v1/runbooks"                                    = { protected = true }
 
+    "GET /v1/analytics"                = { protected = true }
     "GET /v1/labs"                     = { protected = true }
     "POST /v1/labs/{scenarioId}/start" = { protected = true }
     "POST /v1/labs/{scenarioId}/reset" = { protected = true }
@@ -175,7 +176,9 @@ locals {
 
   # Least privilege: its own logs, reads on named tables, conditional writes
   # (never deletes) on the incident tables, and invoking only the coordinator
-  # and the lab controller. It never calls SSM or EC2 itself.
+  # and the lab controller. It never calls SSM or EC2 itself. Phase 8: it may
+  # read metric statistics (no resource-level permissions exist for that
+  # read-only call; ADR-019).
   lambda_policy = {
     Version = "2012-10-17"
     Statement = concat(
@@ -196,6 +199,12 @@ locals {
         Effect   = "Allow"
         Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"]
         Resource = [for t in values(var.write_tables) : t.arn]
+      }],
+      [{
+        Sid      = "ReadProbeMetricStatistics"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:GetMetricStatistics"] # read-only; no resource-level support
+        Resource = "*"
       }],
       var.coordinator_function == null && var.lab_controller_function == null ? [] : [{
         Sid      = "InvokeCoordinatorAndLabControllerOnly"
@@ -337,6 +346,10 @@ output "api_url" {
   value = aws_apigatewayv2_api.http.api_endpoint
 }
 
+output "api_id" {
+  value = aws_apigatewayv2_api.http.id
+}
+
 output "function_name" {
   value = aws_lambda_function.api.function_name
 }
@@ -356,6 +369,10 @@ output "throttling" {
     burst = aws_apigatewayv2_stage.default.default_route_settings[0].throttling_burst_limit
     rate  = aws_apigatewayv2_stage.default.default_route_settings[0].throttling_rate_limit
   }
+}
+
+output "log_group_name" {
+  value = aws_cloudwatch_log_group.lambda.name
 }
 
 output "log_retention_days" {

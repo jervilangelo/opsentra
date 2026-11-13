@@ -1,0 +1,175 @@
+{
+  "schema": "opsentra.report/v1",
+  "dataset": "live",
+  "label": "LIVE AWS — ap-southeast-1",
+  "generatedAt": "2026-11-13T04:12:17Z",
+  "incident": {
+    "id": "INC-20261113-1D4F09",
+    "title": "Nginx health check failing on the lab web server",
+    "severity": "HIGH",
+    "state": "RESOLVED",
+    "resourceId": "i-039b100b6aa9cb8ad",
+    "correlationKey": "ap-southeast-1:i-039b100b6aa9cb8ad:opsentra-lab-nginx-availability",
+    "openedAt": "2026-11-13T01:49:49Z",
+    "detectedAt": "2026-11-13T01:49:49Z",
+    "acknowledgedAt": "2026-11-13T01:51:45Z",
+    "verifiedHealthyAt": "2026-11-13T01:59:07Z",
+    "resolvedAt": "2026-11-13T01:59:15Z",
+    "runbookId": "rb-restart-nginx"
+  },
+  "measurements": {
+    "timeToAcknowledgeSeconds": 116,
+    "timeToVerifiedRecoverySeconds": 558
+  },
+  "remediations": [
+    {
+      "requestId": "REQ-20261113-13927B",
+      "actionKey": "Opsentra-Lab-RestartNginx",
+      "status": "SUCCEEDED",
+      "requestedBy": "opsentra-operator",
+      "approvedBy": "opsentra-admin",
+      "selfApproved": false,
+      "requestedAt": "2026-11-13T01:55:33Z",
+      "decidedAt": "2026-11-13T01:55:45Z",
+      "completedAt": "2026-11-13T01:55:52Z",
+      "executionId": "30cc33af-3dab-4bb1-a571-8f2a2569d824"
+    }
+  ],
+  "timeline": [
+    {
+      "occurredAt": "2026-11-13T01:49:49Z",
+      "eventType": "ALARM_STATE_CHANGED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "alarm": "opsentra-lab-nginx-availability",
+        "eventId": "d9f5413f-90d7-7545-52a4-60a5e729f081",
+        "source": "eventbridge",
+        "to": "ALARM"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:49:49Z",
+      "eventType": "INCIDENT_OPENED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "severity": "HIGH"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:51:16Z",
+      "eventType": "LAB_SCENARIO_LINKED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "note": "This incident was caused by a Simulation Lab test.",
+        "runId": "LAB-20261113-D91188",
+        "scenarioId": "nginx-outage"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:51:45Z",
+      "eventType": "INCIDENT_ACKNOWLEDGED",
+      "actorType": "USER",
+      "actorId": "opsentra-operator",
+      "detail": {
+        "reason": "Gate test: taking ownership"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:51:46Z",
+      "eventType": "INVESTIGATION_STARTED",
+      "actorType": "USER",
+      "actorId": "opsentra-operator",
+      "detail": {}
+    },
+    {
+      "occurredAt": "2026-11-13T01:55:33Z",
+      "eventType": "REMEDIATION_REQUESTED",
+      "actorType": "USER",
+      "actorId": "opsentra-operator",
+      "detail": {
+        "reason": "Nginx stopped; restart is the allowlisted fix",
+        "requestId": "REQ-20261113-13927B",
+        "runbookId": "rb-restart-nginx"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:55:45Z",
+      "eventType": "REMEDIATION_APPROVED",
+      "actorType": "USER",
+      "actorId": "opsentra-admin",
+      "detail": {
+        "reason": "Gate test: lab restart approved",
+        "requestId": "REQ-20261113-13927B"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:55:49Z",
+      "eventType": "REMEDIATION_STARTED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "actionKey": "Opsentra-Lab-RestartNginx",
+        "executionId": "30cc33af-3dab-4bb1-a571-8f2a2569d824",
+        "requestId": "REQ-20261113-13927B"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:55:52Z",
+      "eventType": "REMEDIATION_SUCCEEDED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "executionId": "30cc33af-3dab-4bb1-a571-8f2a2569d824",
+        "note": "SSM reported Success; not recovered until verified",
+        "requestId": "REQ-20261113-13927B"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:55:52Z",
+      "eventType": "VERIFICATION_STARTED",
+      "actorType": "SYSTEM",
+      "detail": {}
+    },
+    {
+      "occurredAt": "2026-11-13T01:57:49Z",
+      "eventType": "ALARM_CLEARED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "alarm": "opsentra-lab-nginx-availability",
+        "note": "Not resolved until verified",
+        "source": "eventbridge",
+        "to": "OK"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:59:07Z",
+      "eventType": "HEALTH_VERIFIED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "afterRemediation": "2026-11-13T01:55:52Z",
+        "check": "independent HTTP probe",
+        "consecutiveHealthyChecks": 4,
+        "requestId": "REQ-20261113-13927B",
+        "streakSince": "2026-11-13T01:56:07Z"
+      }
+    },
+    {
+      "occurredAt": "2026-11-13T01:59:15Z",
+      "eventType": "INCIDENT_RESOLVED",
+      "actorType": "SYSTEM",
+      "detail": {}
+    },
+    {
+      "occurredAt": "2026-11-13T01:59:16Z",
+      "eventType": "LAB_SCENARIO_ENDED",
+      "actorType": "SYSTEM",
+      "detail": {
+        "reason": "Incident INC-20261113-1D4F09 reached RESOLVED",
+        "runId": "LAB-20261113-D91188",
+        "scenarioId": "nginx-outage",
+        "status": "COMPLETED"
+      }
+    }
+  ],
+  "notes": [
+    "MTTR-style durations use verified health (verifiedHealthyAt), never runbook completion."
+  ]
+}

@@ -79,6 +79,16 @@ module "incidents" {
   }
 }
 
+module "observability" {
+  source      = "../../modules/observability"
+  name_prefix = local.name_prefix
+  region      = var.region
+  api_id      = module.api.api_id
+  functions   = concat([module.api.function_name], module.incidents.function_names)
+  dlq_names   = module.incidents.dlq_names
+  log_groups  = concat([module.api.log_group_name], module.incidents.log_group_names)
+}
+
 module "ci" {
   source                     = "../../modules/github-oidc"
   name_prefix                = local.name_prefix

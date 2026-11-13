@@ -15,6 +15,9 @@ import { ACTIVE_INCIDENT_STATES } from '@/types/domain';
  * - MTTR = mean(verifiedHealthyAt − detectedAt) over verified incidents only.
  *   Uses verified health, never runbook completion.
  * - Excluded incidents are counted, never silently dropped.
+ * - Median when n >= 3, p90 (nearest rank) when n >= 10 (v1.10.0).
+ * The Live API computes the same definitions in Python
+ * (services/api/src/opsentra_api/analytics.py); both round halves up.
  */
 
 function mean(
@@ -30,7 +33,35 @@ function mean(
   const excluded = incidents.length - durations.length;
   if (durations.length === 0) return { count: 0, excluded };
   const total = durations.reduce((a, b) => a + b, 0);
-  return { meanSeconds: Math.round(total / durations.length), count: durations.length, excluded };
+  const out: MeanDuration = {
+    meanSeconds: Math.round(total / durations.length),
+    count: durations.length,
+    excluded,
+  };
+  const sorted = [...durations].sort((a, b) => a - b);
+  const n = sorted.length;
+  const at = (i: number) => sorted[i] ?? 0; // indices below are always in range
+  if (n >= 3) {
+    const mid = Math.floor(n / 2);
+    out.medianSeconds = Math.round(n % 2 ? at(mid) : (at(mid - 1) + at(mid)) / 2);
+  }
+  if (n >= 10) out.p90Seconds = Math.round(at(Math.max(0, Math.ceil(0.9 * n) - 1)));
+  return out;
+}
+
+/** Plain-language caveats, worded like the Live API's. */
+export function qualityNotes(summary: AnalyticsSummary, availabilityNote: string): string[] {
+  const notes: string[] = [];
+  if (!summary.availability) notes.push(availabilityNote);
+  if (summary.mtta.excluded > 0)
+    notes.push(
+      `${summary.mtta.excluded} incident(s) were never acknowledged and are excluded from MTTA.`,
+    );
+  if (summary.mttr.excluded > 0)
+    notes.push(
+      `${summary.mttr.excluded} incident(s) have no verified recovery and are excluded from MTTR.`,
+    );
+  return notes;
 }
 
 export function computeAnalytics(
@@ -60,7 +91,7 @@ export function computeAnalytics(
     runbooks.total += 1;
   }
 
-  return {
+  const summary: AnalyticsSummary = {
     from: new Date(from).toISOString(),
     to: new Date(to).toISOString(),
     incidentCount: inRange.length,
@@ -73,6 +104,11 @@ export function computeAnalytics(
     // Demo Mode does not simulate continuous probing, so availability is
     // unknown rather than a misleading percentage.
   };
+  summary.dataQuality = qualityNotes(
+    summary,
+    'Availability is unknown: Demo Mode does not simulate continuous probing.',
+  );
+  return summary;
 }
 
 /** "1h 02m", "4m 09s", "38s". */

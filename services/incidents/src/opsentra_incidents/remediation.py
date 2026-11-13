@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
+from . import obs
 from .core import (
     ROLE_RANK,
     IncidentError,
@@ -46,6 +47,7 @@ from .core import (
 )
 
 logger = logging.getLogger("opsentra-remediation")
+logger.setLevel(logging.INFO)
 
 APPROVAL_TTL = timedelta(minutes=15)
 DISPATCH_GRACE = timedelta(minutes=1)  # APPROVED but not picked up -> reconciler dispatches
@@ -492,6 +494,7 @@ def dispatch(store: Store, ssm: Any, ec2: Any, request_id: str) -> str:
         )
         command_id = res["Command"]["CommandId"]
     except Exception:  # noqa: BLE001
+        obs.error(logger, "runbook send failed", requestId=request_id, incidentId=req["incidentId"])
         finish(store, request_id, "FAILED", "SSM did not accept the command")
         return "failed"
     store.c.transact_write_items(
@@ -507,6 +510,14 @@ def dispatch(store: Store, ssm: Any, ec2: Any, request_id: str) -> str:
                 detail={"requestId": request_id, "executionId": command_id, "actionKey": req["actionKey"]},
             ),
         ]
+    )
+    obs.info(
+        logger,
+        "runbook sent",
+        requestId=request_id,
+        incidentId=req["incidentId"],
+        commandId=command_id,
+        actionKey=req["actionKey"],
     )
     return "sent"
 
@@ -572,9 +583,18 @@ def finish(store: Store, request_id: str, outcome: str, summary: str | None = No
         )
     try:
         _transact(store, items)
-        return True
     except IncidentError:
         return False
+    obs.info(
+        logger,
+        "runbook finished",
+        requestId=request_id,
+        incidentId=incident["incidentId"],
+        correlationKey=corr,
+        outcome=outcome,
+        incidentState="VERIFYING" if ok else "ESCALATED",
+    )
+    return True
 
 
 def on_ssm_status(store: Store, event: Mapping[str, Any]) -> str:
@@ -628,7 +648,12 @@ def verify(store: Store, incident: Mapping[str, Any], resource: Mapping[str, Any
             "afterRemediation": req["completedAt"],
             "requestId": req["requestId"],
         }
-        return "resolved" if resolve(store, incident, str(res.get("lastCheckedAt")), evidence) else "waiting"
+        if not resolve(store, incident, str(res.get("lastCheckedAt")), evidence):
+            return "waiting"
+        obs.info(
+            logger, "verified", incidentId=incident["incidentId"], requestId=req["requestId"], incidentState="RESOLVED"
+        )
+        return "resolved"
     streak = int(res.get("healthyStreak") or 0)
     if parse_iso(now_iso()) > done + VERIFY_WINDOW:
         now = now_iso()
@@ -659,9 +684,16 @@ def verify(store: Store, incident: Mapping[str, Any], resource: Mapping[str, Any
                     ),
                 ],
             )
-            return "escalated"
         except IncidentError:
             return "waiting"
+        obs.info(
+            logger,
+            "verification failed",
+            incidentId=incident["incidentId"],
+            requestId=req["requestId"],
+            incidentState="ESCALATED",
+        )
+        return "escalated"
     return "waiting"
 
 
@@ -673,7 +705,7 @@ def reconcile(store: Store, ssm: Any, ec2: Any) -> dict[str, int]:
         try:
             _reconcile_one(store, ssm, ec2, req, now, report)
         except Exception:  # noqa: BLE001 - one bad item must not block the rest
-            logger.exception("reconcile failed for %s", req.get("requestId"))
+            obs.error(logger, "reconcile failed", requestId=req.get("requestId"), incidentId=req.get("incidentId"))
             report["errors"] += 1
     return report
 

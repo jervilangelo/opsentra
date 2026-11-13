@@ -9,7 +9,7 @@ import copy
 import json
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import boto3
 
@@ -33,7 +33,7 @@ if real is None:
     sys.exit("no real ALARM event found")
 
 ts = datetime.fromisoformat(real["detail"]["state"]["timestamp"].replace("+0000", "+00:00"))
-earlier = (ts - timedelta(minutes=10)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+earlier = (ts - timedelta(minutes=10)).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
 
 
 def variant(eid: str, **changes) -> dict:

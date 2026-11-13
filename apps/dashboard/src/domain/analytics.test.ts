@@ -102,3 +102,71 @@ describe('computeAnalytics (§4.5)', () => {
     expect(formatDuration(3720)).toBe('1h 02m');
   });
 });
+
+describe('Live/Demo parity (Phase 8, ADR-019)', () => {
+  // The four real incidents from the Phase 5-7 live gates. The Python tests
+  // (services/api/tests/test_analytics.py) assert the same expected values.
+  const rows: [string, Incident['state'], string, string, string | undefined][] = [
+    [
+      'INC-20261112-0DA419',
+      'RESOLVED',
+      '2026-11-12T07:39:15Z',
+      '2026-11-12T07:43:25Z',
+      '2026-11-12T07:47:46Z',
+    ],
+    ['INC-20261112-1838F3', 'ESCALATED', '2026-11-12T08:38:26Z', '2026-11-12T08:39:20Z', undefined],
+    [
+      'INC-20261113-1D4F09',
+      'RESOLVED',
+      '2026-11-13T01:49:49Z',
+      '2026-11-13T01:51:45Z',
+      '2026-11-13T01:59:07Z',
+    ],
+    [
+      'INC-20261113-4DEF6A',
+      'RESOLVED',
+      '2026-11-13T02:08:49Z',
+      '2026-11-13T02:09:47Z',
+      '2026-11-13T02:27:07Z',
+    ],
+  ];
+  const live: Incident[] = rows.map(
+    ([id, state, detectedAt, acknowledgedAt, verifiedHealthyAt]) => ({
+      ...base,
+      id,
+      state,
+      openedAt: detectedAt,
+      detectedAt,
+      acknowledgedAt,
+      ...(verifiedHealthyAt ? { verifiedHealthyAt } : {}),
+    }),
+  );
+
+  it('matches the Live API to the second, including halves rounded up', () => {
+    const s = computeAnalytics(live, [], '2026-11-12T00:00:00Z', '2026-11-14T00:00:00Z');
+    expect(s.mtta).toEqual({ count: 4, excluded: 0, meanSeconds: 120, medianSeconds: 87 });
+    expect(s.mttr).toEqual({ count: 3, excluded: 1, meanSeconds: 722, medianSeconds: 558 });
+    expect(s.dataQuality).toContain(
+      '1 incident(s) have no verified recovery and are excluded from MTTR.',
+    );
+  });
+
+  it('p90 appears only with ten or more incidents (nearest rank)', () => {
+    const many: Incident[] = Array.from({ length: 10 }, (_, n) => ({
+      ...base,
+      id: `I${n}`,
+      state: 'RESOLVED' as const,
+      openedAt: '2026-11-13T00:00:00Z',
+      detectedAt: '2026-11-13T00:00:00Z',
+      acknowledgedAt: `2026-11-13T00:00:${String(n + 1).padStart(2, '0')}Z`,
+    }));
+    const s = computeAnalytics(many, [], '2026-11-12T00:00:00Z', '2026-11-14T00:00:00Z');
+    expect([s.mtta.meanSeconds, s.mtta.medianSeconds, s.mtta.p90Seconds]).toEqual([6, 6, 9]);
+  });
+
+  it('Demo availability is unknown and says why', () => {
+    const s = computeAnalytics(live, [], '2026-11-12T00:00:00Z', '2026-11-14T00:00:00Z');
+    expect(s.availability).toBeUndefined();
+    expect(s.dataQuality?.[0]).toMatch(/Availability is unknown/);
+  });
+});

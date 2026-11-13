@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { QueryBoundary } from '@/features/common/QueryBoundary';
 import { RecoveryProgress } from '@/features/recovery/RecoveryProgress';
+import { IncidentReportCard } from '@/features/reports/ReportPanel';
 import { SelfApprovedNote } from '@/features/recovery/SelfApprovedNote';
 import {
   IN_FLIGHT_STATES,
@@ -277,6 +278,13 @@ function IncidentDetailContent({ incidentId }: { incidentId: string }) {
                 </QueryBoundary>
               </CardContent>
             </Card>
+
+            <IncidentReportCard
+              incident={data}
+              events={events}
+              requests={requests}
+              generatedAt={incident.data?.meta.generatedAt ?? data.openedAt}
+            />
           </div>
         );
       }}

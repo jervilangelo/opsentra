@@ -6,20 +6,31 @@
 
 | | |
 |---|---|
-| **Phase** | **8: Analytics, reporting and observability. Next; not started.** |
-| **Phases complete** | 1–5 (approved 2026-11-12); 6–7 (live gates passed and approved by the owner on 2026-11-13). |
-| **Branch** | `main` (Phases 6–7 merged from `feat/remediation`). Start Phase 8 on a new feature branch. |
-| **AWS now** | **Control plane deployed** with Phases 6–7. **Lab destroyed**, teardown verified 2026-11-13 02:29 UTC (`scripts/gate/verify_teardown.py`). `INC-20261112-1838F3` stays ESCALATED (its lab is gone; expected). |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.9.1) and `CLAUDE.md`. Latest designs: ADR-017, ADR-018. Evidence: `docs/phases/phase-6-checkpoint.md`, `docs/phases/phase-7-checkpoint.md`. |
+| **Phase** | **8: Analytics, reporting and observability. Built, deployed and gate-tested live on 2026-11-13. Waiting for the owner's gate review.** |
+| **Phases complete** | 1–5 (approved 2026-11-12); 6–7 (approved 2026-11-13). |
+| **Branch** | `feat/analytics`, pushed. Merge to `main` after the review. |
+| **AWS now** | **Control plane deployed** with Phase 8: `GET /v1/analytics`, the `opsentra-dev-operations` dashboard, structured logs. **Lab destroyed** (not deployed this phase). |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.10.0) and `CLAUDE.md`. Design: `docs/adr/ADR-019-analytics-and-observability.md`. Evidence: `docs/phases/phase-8-checkpoint.md`. |
 
 ## Next
 
-1. Read blueprint §7 Phase 8 and plan it with the owner.
-2. Still open:
-   - the SNS email confirmation (owner);
-   - the Phase 3–7 cost check once billing data arrives;
-   - the control-plane destroy test (deferred);
-   - the 45-minute lab auto-reset (unit-tested only).
+1. The owner reviews the Phase 8 gate.
+2. On approval:
+   - update the CLAUDE.md "Current phase" line;
+   - update the README roadmap and badge;
+   - update blueprint §16 and the version (1.10.1);
+   - merge `feat/analytics` into `main` and push.
+3. Then Phase 9 (Security hardening, testing, optimization).
+
+Still open:
+- the SNS email confirmation (owner);
+- the Phase 3–8 cost check once billing data arrives;
+- the control-plane destroy test (deferred);
+- the 45-minute lab auto-reset (unit-tested only).
+
+Phase 8 gate tools:
+- `scripts/gate/reconcile_analytics.py [from] [to]` (read-only);
+- `scripts/gate/live-analytics.cjs <outDir> <incidentId>` (needs the dev server).
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 

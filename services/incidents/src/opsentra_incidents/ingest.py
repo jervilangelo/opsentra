@@ -7,13 +7,12 @@ and dropped without a write.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import Mapping
 from typing import Any
 
-from . import core
+from . import core, obs
 
 logger = logging.getLogger("opsentra-incident-ingest")
 logger.setLevel(logging.INFO)
@@ -113,7 +112,7 @@ def handle(event: Mapping[str, Any], store: core.Store, account: str, region: st
                 if incident:
                     notify(topic_arn, incident)
             except Exception:  # noqa: BLE001 — a failed email never undoes the incident
-                logger.exception(json.dumps({"msg": "notification failed", "incidentId": out.incident_id}))
+                obs.error(logger, "notification failed", incidentId=out.incident_id, correlationKey=key)
     else:
         out = core.mark_cleared(
             store, correlation_key=key, alarm_name=v["alarm"], signal_at=v["signalAt"], source="eventbridge"
@@ -141,6 +140,7 @@ if os.environ.get("INCIDENTS_TABLE"):
 
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
+    obs.bind(context)
     outcome = handle(
         event,
         _get_store(),
@@ -148,5 +148,12 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         os.environ["AWS_REGION"],
         os.environ.get("ALERT_TOPIC_ARN", ""),
     )
-    logger.info(json.dumps({"msg": "ingest", **outcome}))
+    detail = event.get("detail") if isinstance(event, dict) and isinstance(event.get("detail"), dict) else {}
+    obs.info(
+        logger,
+        "ingest",
+        eventId=event.get("id") if isinstance(event, dict) else None,
+        alarmName=detail.get("alarmName"),
+        **outcome,
+    )
     return outcome

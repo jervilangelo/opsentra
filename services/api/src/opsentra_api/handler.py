@@ -14,6 +14,7 @@ token; the read routes need at least the viewer role.
   GET /v1/runbooks                                                Viewer+
   GET /v1/audit                                                   Admin
   GET /v1/labs, POST /v1/labs/{id}/start|reset                    Admin (ADR-018)
+  GET /v1/analytics[?from=&to=]                                   Viewer+ (ADR-019)
 
 Responses are `{data, meta}` on success and `{error: {code, message, requestId}}`
 on failure. Timestamps are ISO-8601 UTC. Errors never include stack traces.
@@ -28,10 +29,10 @@ import logging
 import os
 import re
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from . import store
+from . import analytics, store
 from .authz import PERMITTED_ACTIONS, AuthError, require_identity, require_role
 
 SERVICE = "opsentra-api"
@@ -392,6 +393,96 @@ def list_runbooks(event: Mapping[str, Any], request_id: str, **_: str) -> Respon
     return ok(rows, request_id)
 
 
+PROBE_NAMESPACE = os.environ.get("PROBE_NAMESPACE", "Opsentra/Lab")
+PROBE_METRIC = "NginxAvailability"
+PROBE_DIMENSIONS = [{"Name": "Scenario", "Value": "nginx"}]
+_cloudwatch: Any = None
+
+
+def cloudwatch() -> Any:
+    global _cloudwatch
+    if _cloudwatch is None:
+        import boto3
+
+        _cloudwatch = boto3.client("cloudwatch")
+    return _cloudwatch
+
+
+def set_cloudwatch(client: Any) -> None:
+    """Tests inject a stub client."""
+    global _cloudwatch
+    _cloudwatch = client
+
+
+def utcnow() -> datetime:
+    """The analytics clock; tests replace it."""
+    return datetime.now(UTC)
+
+
+def probe_period(frm: datetime, to: datetime, now: datetime) -> int:
+    """CloudWatch keeps 1-minute data 15 days, 5-minute data 63 days, hourly 455
+    days. Use the finest period that still exists for the oldest point."""
+    age = now - frm
+    if age <= timedelta(days=14):
+        return 60
+    if age <= timedelta(days=62):
+        return 300
+    return 3600
+
+
+def probe_counts(frm: datetime, to: datetime, now: datetime | None = None) -> dict[str, int] | None:
+    """Sum (healthy) and SampleCount (total) of the probe metric in [from, to).
+    None when the metric cannot be read: availability is then unknown."""
+    now = now or datetime.now(UTC)
+    period = probe_period(frm, to, now)
+    chunk = timedelta(seconds=period * 1440)  # GetMetricStatistics returns at most 1,440 points
+    healthy = total = 0
+    start = frm
+    try:
+        while start < to:
+            end = min(to, start + chunk)
+            res = cloudwatch().get_metric_statistics(
+                Namespace=PROBE_NAMESPACE,
+                MetricName=PROBE_METRIC,
+                Dimensions=PROBE_DIMENSIONS,
+                StartTime=start,
+                EndTime=end,
+                Period=period,
+                Statistics=["Sum", "SampleCount"],
+            )
+            for point in res.get("Datapoints", []):
+                healthy += int(round(point.get("Sum", 0)))
+                total += int(round(point.get("SampleCount", 0)))
+            start = end
+    except Exception:  # noqa: BLE001 - unknown, never a fake 0 or 100 %
+        logger.exception(json.dumps({"msg": "probe metric read failed"}))
+        return None
+    return {"healthy": healthy, "total": total}
+
+
+def get_analytics(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
+    """Live analytics for [from, to] (default: the last 30 days)."""
+    _viewer(event)
+    q = event.get("queryStringParameters") or {}
+    now = utcnow()
+    try:
+        frm, to = analytics.parse_range(q.get("from"), q.get("to"), now)
+    except analytics.RangeError as err:
+        raise BadRequest(str(err)) from err
+    incidents = _incidents()
+    rems = [store.remediation_dto(i) for i in get_store().scan(store.tables()["remediations"]) if i.get("requestId")]
+    evidence: dict[str, dict[str, Any]] = {}
+    for inc in incidents:
+        stamp = inc.get("detectedAt") or inc.get("openedAt")
+        if not inc.get("verifiedHealthyAt") or not stamp or not frm <= analytics.parse(stamp) <= to:
+            continue
+        for item in get_store().query_pk(store.tables()["audit"], "PK", f"INCIDENT#{inc['id']}"):
+            if item.get("eventType") == "HEALTH_VERIFIED" and isinstance(item.get("detail"), dict):
+                evidence[inc["id"]] = item["detail"]
+    data = analytics.compute(incidents, rems, evidence, probe_counts(frm, to, now), frm, to)
+    return ok(data, request_id)
+
+
 def list_audit(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
     _, role = require_identity(event)
     require_role(role, "ADMIN")  # full audit is admin-only (§4.2, §5.2)
@@ -476,6 +567,7 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[..., Response], tuple[str, ...
     ("POST", re.compile(rf"^/v1/remediations/{_ID}/decision$"), decide_remediation, ("remediation_id",)),
     ("GET", re.compile(r"^/v1/runbooks$"), list_runbooks, ()),
     ("GET", re.compile(r"^/v1/audit$"), list_audit, ()),
+    ("GET", re.compile(r"^/v1/analytics$"), get_analytics, ()),
     ("GET", re.compile(r"^/v1/labs$"), list_labs, ()),
     ("POST", re.compile(rf"^/v1/labs/{_ID}/start$"), _lab_action("start"), ("scenario_id",)),
     ("POST", re.compile(rf"^/v1/labs/{_ID}/reset$"), _lab_action("reset"), ("scenario_id",)),

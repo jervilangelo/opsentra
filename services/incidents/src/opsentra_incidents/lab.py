@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from . import remediation
+from . import obs, remediation
 from .core import (
     ACTIVE,
     ROLE_RANK,
@@ -48,6 +48,7 @@ from .core import (
 )
 
 logger = logging.getLogger("opsentra-lab")
+logger.setLevel(logging.INFO)
 
 RUN_LIMIT = timedelta(minutes=45)  # a run is reset automatically after this
 COOLDOWN = timedelta(minutes=5)  # after a run ends, before the next can start
@@ -444,6 +445,15 @@ def end_run(
         )
     if not _transact(store, items):
         return False
+    obs.info(
+        logger,
+        "lab run ended",
+        runId=rid,
+        scenarioId=run.get("scenarioId"),
+        incidentId=run.get("incidentId"),
+        status=status,
+        reason=reason,
+    )
     if run.get("incidentId"):
         _incident_note(
             store,
@@ -579,6 +589,7 @@ def start(
             ),
         ]
     )
+    obs.info(logger, "lab run started", runId=run_id, scenarioId=sc.id, resourceId=instance_id, commandId=command_id)
     response = scenario_dto(store, ssm, ec2, sc)
     remember(store, key, fp, response)
     return response
@@ -695,6 +706,7 @@ def _watch(store: Store, ssm: Any, ec2: Any, run: dict[str, Any], now: datetime,
         if found and parse_iso(str(found.get("openedAt", run["startedAt"]))) >= started:
             if _link(store, rid, found["incidentId"]):
                 run["incidentId"] = found["incidentId"]
+                obs.info(logger, "lab run linked", runId=rid, incidentId=found["incidentId"])
                 incident = found
                 report["labLinked"] += 1
                 _incident_note(
@@ -724,7 +736,7 @@ def _watch(store: Store, ssm: Any, ec2: Any, run: dict[str, Any], now: datetime,
             try:
                 command_id = _send(ssm, str(run["resourceId"]), pin, f"Opsentra lab expiry {rid}")
             except Exception:  # noqa: BLE001
-                logger.exception("expiry reset failed for %s", rid)
+                obs.error(logger, "expiry reset failed", runId=rid)
         reason = "Time limit reached; Nginx restart sent" if command_id else "Time limit reached; restart not sent"
         if end_run(store, run, "EXPIRED", reason, detail={"resetCommandId": command_id} if command_id else None):
             report["labEnded"] += 1
@@ -775,12 +787,12 @@ def watchdog(store: Store, ssm: Any, ec2: Any) -> dict[str, int]:
         try:
             _watch(store, ssm, ec2, run, now, report)
         except Exception:  # noqa: BLE001 - one bad run must not block the rest
-            logger.exception("lab watchdog failed for %s", run.get("runId"))
+            obs.error(logger, "lab watchdog failed", runId=run.get("runId"))
             report["labErrors"] += 1
     try:
         if _release_stale_lock(store):
             report["labEnded"] += 1
     except Exception:  # noqa: BLE001
-        logger.exception("lab lock check failed")
+        obs.error(logger, "lab lock check failed")
         report["labErrors"] += 1
     return report

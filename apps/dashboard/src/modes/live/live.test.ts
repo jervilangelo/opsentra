@@ -127,11 +127,13 @@ describe('live data source fails closed', () => {
     await expect(liveDataSource.listResources()).rejects.toBeInstanceOf(ApiRequestError);
   });
 
-  it('features from later phases reject as not implemented', async () => {
+  it('analytics sends the range as encoded query parameters (Phase 8)', async () => {
     _setTokensForTest(fresh());
-    await expect(
-      liveDataSource.getAnalytics({ from: '2026-11-01', to: '2026-11-12' }),
-    ).rejects.toMatchObject({ reason: 'not-implemented' });
+    const spy = respond(200, { data: {}, meta: { dataset: 'live' } });
+    await liveDataSource.getAnalytics({ from: '2026-11-01T00:00:00Z', to: '2026-11-12T00:00:00Z' });
+    expect(String(spy.mock.calls[0]![0])).toBe(
+      'https://api.example.test/v1/analytics?from=2026-11-01T00%3A00%3A00Z&to=2026-11-12T00%3A00%3A00Z',
+    );
   });
 
   it('lab start sends only the scenario ID, the confirmation and the idempotency key (ADR-018)', async () => {

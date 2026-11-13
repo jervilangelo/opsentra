@@ -65,8 +65,12 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
-    condition     = length(module.api.route_authorization) == 20 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
-    error_message = "Phase 7 exposes twenty routes and every write route needs a JWT."
+    condition     = length(module.api.route_authorization) == 21 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
+    error_message = "Phase 8 exposes twenty-one routes and every write route needs a JWT."
+  }
+  assert {
+    condition     = module.api.route_authorization["GET /v1/analytics"] == "JWT"
+    error_message = "Analytics needs a Cognito JWT."
   }
   assert {
     condition     = alltrue([for r in ["GET /v1/labs", "POST /v1/labs/{scenarioId}/start", "POST /v1/labs/{scenarioId}/reset"] : module.api.route_authorization[r] == "JWT"])
@@ -88,10 +92,10 @@ run "lambda_role_is_least_privilege" {
   assert {
     condition = alltrue(flatten([
       for s in module.api.lambda_policy.Statement : [
-        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem", "lambda:InvokeFunction"], a)
+        for a in s.Action : contains(["logs:CreateLogStream", "logs:PutLogEvents", "dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem", "lambda:InvokeFunction", "cloudwatch:GetMetricStatistics"], a)
       ]
     ]))
-    error_message = "The API Lambda may write its logs, read tables, make conditional writes and invoke the coordinator; nothing else."
+    error_message = "The API Lambda may write its logs, read tables, make conditional writes, invoke the coordinator and lab controller, and read metric statistics; nothing else."
   }
   assert {
     condition = alltrue([
@@ -107,8 +111,21 @@ run "lambda_role_is_least_privilege" {
     error_message = "The API never calls SSM or EC2 itself; only the coordinator runs runbooks."
   }
   assert {
-    condition     = !anytrue([for s in module.api.lambda_policy.Statement : s.Resource == "*"])
-    error_message = "No wildcard resources on the Lambda role."
+    condition     = alltrue([for s in module.api.lambda_policy.Statement : s.Action == ["cloudwatch:GetMetricStatistics"] if s.Resource == "*"])
+    error_message = "The only wildcard resource on the API role is the read-only GetMetricStatistics (no resource-level support)."
+  }
+}
+
+run "observability_dashboard" {
+  command = apply # mocked: nothing is created
+
+  assert {
+    condition     = module.observability.dashboard_name == "opsentra-dev-operations"
+    error_message = "One operations dashboard, named after the environment."
+  }
+  assert {
+    condition     = module.observability.dashboard_widget_count <= 10
+    error_message = "Keep the dashboard small (free tier: 3 dashboards, 50 metrics each)."
   }
 }
 

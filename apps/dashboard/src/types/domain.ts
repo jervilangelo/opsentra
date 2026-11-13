@@ -61,6 +61,8 @@ export interface Incident {
   resolvedAt?: string;
   version: number;
   runbookId?: string;
+  /** v1.10.0 (ADR-019): the alarm that opened it; used for investigation links. */
+  alarmName?: string;
 }
 
 export interface TimelineEvent {
@@ -204,6 +206,10 @@ export interface MeanDuration {
   count: number;
   /** Incidents in range that were excluded, e.g. never acknowledged. */
   excluded: number;
+  /** v1.10.0: median, only when count >= 3. */
+  medianSeconds?: number;
+  /** v1.10.0: 90th percentile (nearest rank), only when count >= 10. */
+  p90Seconds?: number;
 }
 
 /** v1.3.0: payload of GET /v1/analytics (§4.5 definitions). */
@@ -217,8 +223,18 @@ export interface AnalyticsSummary {
   mtta: MeanDuration;
   mttr: MeanDuration;
   runbooks: { succeeded: number; failed: number; rejected: number; total: number };
-  /** Undefined when no probe data exists in range ("unknown", not 100 %). */
-  availability?: { healthyProbes: number; totalProbes: number };
+  /**
+   * v1.10.0 (ADR-019): how each verified recovery was proven, from the
+   * HEALTH_VERIFIED evidence. Live only; Demo leaves it undefined.
+   */
+  recoveries?: { afterRunbook: number; selfHealed: number; unknown: number };
+  /**
+   * Undefined when no probe data exists in range ("unknown", not 100 %).
+   * v1.10.0: `expectedProbes` is one per minute of the range, for coverage.
+   */
+  availability?: { healthyProbes: number; totalProbes: number; expectedProbes?: number };
+  /** v1.10.0: plain-language caveats about missing or excluded data. */
+  dataQuality?: string[];
 }
 
 /** Every privileged mutation carries these (CLAUDE.md, §4.2). */

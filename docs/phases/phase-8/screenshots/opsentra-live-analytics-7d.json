@@ -1,0 +1,57 @@
+{
+  "schema": "opsentra.report/v1",
+  "dataset": "live",
+  "label": "LIVE AWS — ap-southeast-1",
+  "generatedAt": "2026-11-13T04:12:16Z",
+  "definitions": {
+    "MTTA": "Mean of acknowledgedAt − detectedAt over acknowledged incidents; unacknowledged ones are excluded and counted.",
+    "MTTR": "Mean of verifiedHealthyAt − detectedAt over incidents whose recovery was verified by health checks; runbook completion is not used.",
+    "Availability": "Healthy probes ÷ probes received in the range (Nginx over HTTP, not EC2 running). Minutes without a probe are unknown.",
+    "Percentiles": "Median when n ≥ 3; p90 (nearest rank) when n ≥ 10."
+  },
+  "summary": {
+    "from": "2026-11-06T04:12:15Z",
+    "to": "2026-11-13T04:12:15Z",
+    "incidentCount": 4,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 4,
+      "MEDIUM": 0,
+      "LOW": 0
+    },
+    "active": 1,
+    "escalated": 1,
+    "mtta": {
+      "count": 4,
+      "excluded": 0,
+      "meanSeconds": 120,
+      "medianSeconds": 87
+    },
+    "mttr": {
+      "count": 3,
+      "excluded": 1,
+      "meanSeconds": 722,
+      "medianSeconds": 558
+    },
+    "runbooks": {
+      "succeeded": 3,
+      "failed": 0,
+      "rejected": 0,
+      "total": 3
+    },
+    "recoveries": {
+      "afterRunbook": 1,
+      "selfHealed": 2,
+      "unknown": 0
+    },
+    "availability": {
+      "healthyProbes": 55,
+      "totalProbes": 128,
+      "expectedProbes": 10080
+    },
+    "dataQuality": [
+      "Probes cover 1% of this range; minutes without a probe are unknown, not counted as up or down.",
+      "1 incident(s) have no verified recovery and are excluded from MTTR."
+    ]
+  }
+}

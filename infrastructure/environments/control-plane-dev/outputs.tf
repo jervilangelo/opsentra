@@ -20,6 +20,11 @@ output "cognito_domain" {
   value = module.auth.domain
 }
 
+output "dashboard_name" {
+  description = "CloudWatch operations dashboard (Phase 8); linked from the Live Analytics page."
+  value       = module.observability.dashboard_name
+}
+
 output "table_names" {
   value = module.tables.table_names
 }
