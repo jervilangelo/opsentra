@@ -17,9 +17,11 @@
 1. Phase 9 needs owner approval for:
    - the control-plane apply of F1 and F4 (plan: 1 add, 2 change), then `scripts/security/probe_api.py`;
    - a lab cycle: deploy, axe on the Live screens, `lab_attacks.py`, destroy, `verify_teardown.py`;
-   - a cost baseline: Cost Explorer (us-east-1, about $0.01 per call) or a manual Billing check.
+   (Both were requested by the owner, but Claude Code's auto-mode classifier blocks `terraform apply`. The owner runs them, or allows them in the settings.)
 
-   Also confirm the owner's TOTP enrolment (F2).
+   Done: the cost baseline (≈ US$0.035 for Nov 1–13; see the test report).
+
+   Open: F2 (dashboard admin MFA). The owner's IAM user has MFA, but the Cognito admin `opsentra-admin` has none.
 2. Still open:
    - the SNS email confirmation (owner);
    - the Phase 3–8 cost check once billing data arrives;
