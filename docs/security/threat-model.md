@@ -15,7 +15,7 @@ This review builds on blueprint §5.1 (trust boundaries) and §5.3 (threats). It
 ## Trust boundaries (as built)
 
 1. **Public web.** The static dashboard (Demo needs no network). Production builds ship a strict CSP: scripts only from this origin or a hashed inline script, and connections only to the API and Cognito.
-2. **API Gateway.** It verifies the Cognito JWT on every route except `/v1/health`, including the `$default` catch-all (Phase 9). The CORS allow-list is exact, credentials are off, and the stage throttle is a burst of 10 at 5 requests per second.
+2. **API Gateway.** It verifies the Cognito JWT on every route except `/v1/health`. There is no catch-all route: one would swallow CORS preflight (Phase 9 regression). The CORS allow-list is exact, credentials are off, and the stage throttle is a burst of 10 at 5 requests per second.
 3. **API Lambda.** It takes the role from `cognito:groups` only; a role in a body or query is ignored. It can read and conditionally write the tables and invoke the coordinator and lab controller. Its only wildcard is the read-only `GetMetricStatistics`. It never calls SSM or EC2.
 4. **Privileged Lambdas.**
    - **Coordinator and reconciler:** exactly the `RestartNginx` document (Phase 9), only on `opsentra:lab=true` instances.
@@ -29,7 +29,7 @@ This review builds on blueprint §5.1 (trust boundaries) and §5.3 (threats). It
 
 | # | Threat (STRIDE) | Control | Evidence |
 |---|---|---|---|
-| T1 | Unauthenticated access to live data or actions (S, I) | JWT on every route except health; `$default` also needs a JWT | `probe_api.py`: 20 routes × {no token, malformed, ID token} → 401. Terraform test: only `/v1/health` is public |
+| T1 | Unauthenticated access to live data or actions (S, I) | JWT on every route except health; unknown paths get API Gateway's 404 | `probe_api.py`: 20 routes × {no token, malformed, ID token} → 401; preflight 2xx. Terraform tests: only `/v1/health` is public; no catch-all, OPTIONS or ANY routes |
 | T2 | Privilege escalation via forged role or claim (E) | Role from trusted Cognito groups only | Unit tests (role in body ignored); live attacks Phases 6 and 7: operator/viewer → 403, audited `*_DENIED` |
 | T3 | IDOR or arbitrary target (E, T) | Server-side registry and allowlists; the request carries only a runbook or scenario ID; hash-pinned documents; tag check in IAM and code | Unit tests (forged IDs, tampered hash, untagged or stopped instance); live: forged instance/document/command → refused; 7 of 7 SSM commands hit only the lab instance |
 | T4 | Command injection (T, E) | No parameters on SSM documents; IDs validated by pattern; no shell or Terraform endpoints | Unit tests (shell metacharacters → 400/404); `probe_api.py` injection-shaped IDs → 4xx |
@@ -50,7 +50,7 @@ This review builds on blueprint §5.1 (trust boundaries) and §5.3 (threats). It
 
 | Risk | Status |
 |---|---|
-| Admin accounts without MFA could be phished; MFA is optional in the pool (F2) | **Owner decision:** the pool stays OPTIONAL; the owner enrols TOTP on the real admin account (confirmation pending). Test users have no admin rights in production use |
+| Admin accounts without MFA could be phished; MFA is optional in the pool (F2) | **Open (medium):** the owner's IAM user has MFA, but the Cognito admin is the shared test user `opsentra-admin`, without MFA. Owner to choose: a personal Cognito admin with TOTP, or TOTP on the test user |
 | `ReadOnlyAccess` on the CI plan role can read data such as DynamoDB items (F3) | Accepted for a solo repo; revisit if collaborators are added |
 | Dev-only `minimatch` ReDoS via typescript-eslint (F6) | Accepted: lint input is our own config; no fix within the supported range |
 | `style-src 'unsafe-inline'` in the CSP | Accepted: the toast library injects styles; scripts stay hash-only |

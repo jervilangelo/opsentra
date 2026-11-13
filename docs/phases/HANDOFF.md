@@ -6,32 +6,29 @@
 
 | | |
 |---|---|
-| **Phase** | **9: Security hardening, testing and optimization. In progress:** audit done, local fixes done (CSP, `$default` route, runbook IAM narrowed), docs written. **Not deployed.** See `docs/phases/phase-9-test-report.md` → Pending. |
-| **Phases complete** | 1–5 (approved 2026-11-12); 6–8 (approved 2026-11-13). |
-| **Branch** | `feat/hardening` (pushed). `main` has Phases 1–8. |
-| **AWS now** | **Control plane deployed** with Phases 6–8 (analytics route, `opsentra-dev-operations` dashboard, structured logs). **Lab destroyed.** |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.10.1) and `CLAUDE.md`. Latest designs: ADR-017, ADR-018, ADR-019. Evidence: `docs/phases/phase-6-checkpoint.md` to `phase-8-checkpoint.md`. |
+| **Phase** | **9: Security hardening, testing and optimization. Gate tests done on 2026-11-13. Waiting for the owner's gate review.** |
+| **Phases complete** | 1–8. |
+| **Branch** | `feat/hardening` (pushed). Merge to `main` after the review. |
+| **AWS now** | **Control plane deployed** with F4 (runbook IAM narrowed). **No `$default` route:** it was tried and reverted. **Lab destroyed**, teardown verified at 06:5x UTC. |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.11.0) and `CLAUDE.md`. Design: `docs/adr/ADR-020-security-hardening.md`. Evidence: `docs/phases/phase-9-test-report.md`. |
 
 ## Next
 
-1. Phase 9 needs owner approval for:
-   - the control-plane apply of F1 and F4 (plan: 1 add, 2 change), then `scripts/security/probe_api.py`;
-   - a lab cycle: deploy, axe on the Live screens, `lab_attacks.py`, destroy, `verify_teardown.py`;
-   (Both were requested by the owner, but Claude Code's auto-mode classifier blocks `terraform apply`. The owner runs them, or allows them in the settings.)
+1. The owner reviews the Phase 9 gate.
+2. On approval:
+   - update the CLAUDE.md "Current phase" line;
+   - update the README roadmap and badge;
+   - update blueprint §16 (Phase 9 items) and the version;
+   - merge into `main`.
+3. Phase 10 (public release, docs, portfolio).
 
-   Done: the cost baseline (≈ US$0.035 for Nov 1–13; see the test report).
+Still open:
+- **F2:** Cognito admin MFA. The owner chooses a personal admin with TOTP, or TOTP on `opsentra-admin`.
+- Activate the `opsentra:project` cost-allocation tag.
+- The SNS email confirmation.
+- The control-plane destroy test (deferred).
 
-   Open: F2 (dashboard admin MFA). The owner's IAM user has MFA, but the Cognito admin `opsentra-admin` has none.
-2. Still open:
-   - the SNS email confirmation (owner);
-   - the Phase 3–8 cost check once billing data arrives;
-   - the control-plane destroy test (deferred);
-   - the 45-minute lab auto-reset (unit-tested only).
-
-Gate tools:
-- `scripts/gate/reconcile_analytics.py`, `live-analytics.cjs` (Phase 8);
-- `live-lab.cjs`, `lab_attacks.py`, `verify_teardown.py` (Phase 7);
-- `live-remediate.cjs`, `attack_replay.py` (Phase 6).
+Security tools: `scripts/security/` (`scan_secrets.py`, `probe_api.py`, `latency_check.py`) and `scripts/gate/live-axe.cjs`.
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 

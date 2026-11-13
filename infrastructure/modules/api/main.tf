@@ -126,10 +126,10 @@ locals {
     "GET /v1/runbooks"                                    = { protected = true }
 
     "GET /v1/analytics" = { protected = true }
-    # Phase 9 (finding F1): any other path reaches the Lambda (after the JWT
-    # check), which answers with the standard {error} 404 envelope instead of
-    # API Gateway's default body.
-    "$default"                         = { protected = true }
+    # No "$default" route: a JWT-protected catch-all also catches CORS preflight
+    # (OPTIONS, sent without a token) and answers 401, which breaks every
+    # browser call. Tried in Phase 9 for finding F1 and reverted (live gate,
+    # 2026-11-13); unknown paths keep API Gateway's own 404 body.
     "GET /v1/labs"                     = { protected = true }
     "POST /v1/labs/{scenarioId}/start" = { protected = true }
     "POST /v1/labs/{scenarioId}/reset" = { protected = true }

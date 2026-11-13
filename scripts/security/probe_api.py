@@ -110,6 +110,9 @@ def cors_checks() -> None:
     status, h, _ = request("OPTIONS", "/v1/incidents", {"Origin": "https://evil.example", **pre})
     check("CORS: unknown origin gets no allow-origin", "access-control-allow-origin" not in h, f"{status}")
     status, h, _ = request("OPTIONS", "/v1/incidents", {"Origin": DASHBOARD_ORIGIN, **pre})
+    # Browsers reject any non-2xx preflight as a network error (a JWT catch-all
+    # route once returned 401 here and broke the whole Live UI; Phase 9).
+    check("CORS: preflight succeeds (2xx, no token needed)", 200 <= status < 300, f"{status}")
     check("CORS: dashboard origin allowed exactly", h.get("access-control-allow-origin") == DASHBOARD_ORIGIN, f"{status}")
     check("CORS: credentials not allowed", h.get("access-control-allow-credentials", "false") != "true")
     check("CORS: only GET, POST, OPTIONS", set(h.get("access-control-allow-methods", "").replace(" ", "").split(",")) <= {"GET", "POST", "OPTIONS"})
@@ -166,7 +169,10 @@ def input_checks(token: str) -> None:
     check("responses are not cached", "no-store" in h.get("cache-control", ""))
     check("no server/framework banner", "x-powered-by" not in h)
     status, _, raw = request("GET", "/v1/no-such-route", auth)
-    check("unknown route -> 404 envelope", status == 404 and b'"error"' in raw and not leaks(raw), str(status))
+    # F1 (accepted, low): API Gateway answers unknown routes itself, so the body is
+    # its own {"message":"Not Found"}, not our envelope. A catch-all route would
+    # fix the shape but breaks CORS preflight (Phase 9). Require 404 and no leak.
+    check("unknown route -> 404, nothing leaked (F1 accepted)", status == 404 and not leaks(raw), str(status))
 
 
 def tokens() -> tuple[str | None, str | None]:

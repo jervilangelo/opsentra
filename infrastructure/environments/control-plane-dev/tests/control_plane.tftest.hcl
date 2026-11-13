@@ -65,12 +65,12 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
-    condition     = length(module.api.route_authorization) == 22 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
-    error_message = "Phase 9 exposes twenty-one routes plus $default, and every write route needs a JWT."
+    condition     = length(module.api.route_authorization) == 21 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
+    error_message = "Phase 8 exposes twenty-one routes and every write route needs a JWT."
   }
   assert {
-    condition     = module.api.route_authorization["$default"] == "JWT"
-    error_message = "The catch-all route must require a JWT (unknown paths are not public)."
+    condition     = !contains(keys(module.api.route_authorization), "$default") && !anytrue([for k in keys(module.api.route_authorization) : startswith(k, "OPTIONS ") || startswith(k, "ANY ")])
+    error_message = "No catch-all, OPTIONS or ANY routes: with a JWT they swallow CORS preflight (401) and break the browser (Phase 9 regression)."
   }
   assert {
     condition     = module.api.route_authorization["GET /v1/analytics"] == "JWT"
