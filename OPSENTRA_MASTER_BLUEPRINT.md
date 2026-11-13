@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.11.0 (Phases 1–8 complete; Phase 9 gate tested, owner review pending)  
+> **Version:** 1.11.1 (Phases 1–9 complete; Phase 10 in progress)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation), 7 (Live Simulation Lab) and 8 (analytics and observability) passed their gates and were approved by the owner on 2026-11-13. Phase 9 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
@@ -577,7 +577,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** no outstanding critical/high security findings for public demo/live admin APIs; core tests pass; AWS lab destroy verified; acceptable cost baseline observed.
 
-**Status (2026-11-13):** audit and live gate tests done (ADR-020); no critical or high findings; owner review pending: see `docs/phases/phase-9-test-report.md`.
+**Status (2026-11-13):** complete; audit and live gate tests done and approved by the owner (ADR-020): see `docs/phases/phase-9-test-report.md`.
 
 ### Phase 10 — Public release, docs, portfolio case study
 
@@ -915,7 +915,7 @@ These links support design decisions and should be rechecked for new AWS service
 
 ### Validation and release
 - [ ] Unit/contract/integration/Playwright E2E tests
-- [ ] Auth, IDOR, command injection, replay and SSRF negative tests
+- [x] Auth, IDOR, command injection, replay and SSRF negative tests (unit tests; live probes and attack runs, Phases 6–9)
 - [x] Export evidence and measured metrics (Phase 8: reconciled Live analytics, sanitized JSON/CSV reports)
 - [ ] Document actual costs, cleanup and IaC reproduction
 - [ ] Publish public Demo Mode with no exposed privileged endpoints
@@ -945,5 +945,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.10.0 | 2026-11-13 | ADR-019: Live analytics (`GET /v1/analytics`, same definitions as Demo, percentiles, recovery outcomes, probe coverage, data-quality notes), sanitized JSON/CSV exports, structured log IDs, CloudWatch operations dashboard and investigation links; API may read metric statistics. Phase 8 live gate run; owner review pending. |
 | 1.10.1 | 2026-11-13 | Phase 8 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
 | 1.11.0 | 2026-11-13 | ADR-020: Phase 9 security hardening (runbook IAM narrowed, production CSP, catch-all route rejected after a live preflight regression, threat model, runbooks, test report, cost baseline ≈ US$0.035 for Nov 1–13). Owner review pending. |
+| 1.11.1 | 2026-11-13 | Phase 9 gate approved by the owner; §16 negative-test item ticked (verified live). Phase 10 started. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 1–8 COMPLETE; Phase 9 gate tested, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 1–9 COMPLETE; Phase 10 in progress; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

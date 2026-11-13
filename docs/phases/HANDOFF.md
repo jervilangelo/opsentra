@@ -6,29 +6,18 @@
 
 | | |
 |---|---|
-| **Phase** | **9: Security hardening, testing and optimization. Gate tests done on 2026-11-13. Waiting for the owner's gate review.** |
-| **Phases complete** | 1–8. |
-| **Branch** | `feat/hardening` (pushed). Merge to `main` after the review. |
-| **AWS now** | **Control plane deployed** with F4 (runbook IAM narrowed). **No `$default` route:** it was tried and reverted. **Lab destroyed**, teardown verified at 06:5x UTC. |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.11.0) and `CLAUDE.md`. Design: `docs/adr/ADR-020-security-hardening.md`. Evidence: `docs/phases/phase-9-test-report.md`. |
+| **Phase** | **10: Public release, docs and portfolio case study. In progress** (owner approved everything for Phase 10 on 2026-11-13). |
+| **Phases complete** | 1–9. |
+| **Branch** | `main` has Phases 1–9. Phase 10 is on `feat/release`. |
+| **AWS now** | **Control plane deployed** (Phases 6–9). **Lab destroyed.** |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` and `CLAUDE.md`. Latest ADR: ADR-020. |
 
-## Next
+## Still open
 
-1. The owner reviews the Phase 9 gate.
-2. On approval:
-   - update the CLAUDE.md "Current phase" line;
-   - update the README roadmap and badge;
-   - update blueprint §16 (Phase 9 items) and the version;
-   - merge into `main`.
-3. Phase 10 (public release, docs, portfolio).
-
-Still open:
-- **F2:** Cognito admin MFA. The owner chooses a personal admin with TOTP, or TOTP on `opsentra-admin`.
+- **F2:** Cognito admin MFA (owner decision).
 - Activate the `opsentra:project` cost-allocation tag.
 - The SNS email confirmation.
 - The control-plane destroy test (deferred).
-
-Security tools: `scripts/security/` (`scan_secrets.py`, `probe_api.py`, `latency_check.py`) and `scripts/gate/live-axe.cjs`.
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 

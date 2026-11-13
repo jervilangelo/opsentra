@@ -2,7 +2,7 @@
 
 - **Branch:** `feat/hardening`
 - **Date:** 2026-11-13
-- **Status:** **Gate tests done on 2026-11-13. Waiting for the owner's gate review.** No critical or high findings are open. The lab was deployed, attacked, audited and destroyed, and teardown was verified. One medium finding (F2, admin MFA) needs an owner decision.
+- **Status:** **Complete.** Gate approved by the owner on 2026-11-13. No critical or high findings are open. The lab was deployed, attacked, audited and destroyed, and teardown was verified. One medium finding (F2, admin MFA) needs an owner decision.
 - **Design:** [`ADR-020`](../adr/ADR-020-security-hardening.md) (blueprint v1.11.0).
 - **Threat model:** [`docs/security/threat-model.md`](../security/threat-model.md). **Runbooks:** [`docs/operations/runbooks.md`](../operations/runbooks.md).
 
