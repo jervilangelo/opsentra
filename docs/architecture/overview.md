@@ -2,7 +2,7 @@
 
 This page links to the planned system in the [master blueprint §3](../../OPSENTRA_MASTER_BLUEPRINT.md#3-architecture-and-boundaries) and describes the frontend as built.
 
-**Built and deployed (Phases 3–5):** Cognito, the HTTP API with JWT roles, Lambda handlers and DynamoDB (ADR-014); the disposable EC2/Nginx lab with its probe, metric, alarm and EventBridge rule (ADR-015); and the incident path (EventBridge → ingest Lambda → DynamoDB, a 5-minute reconciler, SNS email; ADR-016). **Not built yet:** the approved action coordinator and Systems Manager runbooks (Phase 6).
+**Built and deployed (Phases 3–5):** Cognito, the HTTP API with JWT roles, Lambda handlers and DynamoDB (ADR-014); the disposable EC2/Nginx lab with its probe, metric, alarm and EventBridge rule (ADR-015); and the incident path (EventBridge → ingest Lambda → DynamoDB, a 5-minute reconciler, SNS email; ADR-016). Phase 6 added approved remediation: a coordinator Lambda that runs one hash-pinned SSM document per approval, SSM status events, and verification by healthy probes, with the reconciler every 2 minutes (ADR-017). Phase 7 added the Live Simulation Lab: a lab-controller Lambda invoked only by the API, a `lab-runs` table with a one-run lock, and a watchdog in the reconciler (ADR-018). **Not built yet:** Live analytics and reports (Phase 8); live Scenarios B and C.
 
 ## Planned system (blueprint §3.1)
 

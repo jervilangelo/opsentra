@@ -1,7 +1,7 @@
 # Phase 6 checkpoint: Controlled automated remediation
 
 - **Branch:** `feat/remediation`
-- **Status:** **In progress.** Control plane deployed; first live gate run on 2026-11-12 found two bugs (see below and `HANDOFF.md`), fixed on 2026-11-13 (blueprint v1.8.1, commit `884bacb`). **Live gate re-run passed on 2026-11-13 (run 2 below); awaiting the owner's gate review.** Lab destroyed, teardown verified.
+- **Status:** **In progress.** Control plane deployed; first live gate run on 2026-11-12 found two bugs (see below and `HANDOFF.md`), fixed on 2026-11-13 (blueprint v1.8.1, commit `884bacb`). **Complete.** Live gate re-run passed (run 2 below) and approved by the owner on 2026-11-13. Lab destroyed, teardown verified.
 
 ## Gate (blueprint §7, Phase 6)
 

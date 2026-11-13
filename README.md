@@ -11,14 +11,14 @@
 A UI-first cloud operations and incident response platform for AWS infrastructure.
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-FBBF24?style=flat-square)
-![Phase 6 of 10](https://img.shields.io/badge/phase-6%20of%2010-38BDF8?style=flat-square)
+![Phase 8 of 10](https://img.shields.io/badge/phase-8%20of%2010-38BDF8?style=flat-square)
 ![AWS](https://img.shields.io/badge/cloud-AWS-0B1220?style=flat-square)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-0B1220?style=flat-square)
 
 </div>
 
 > [!WARNING]
-> **Opsentra is a work in progress.** The project is in **Phase 6: controlled automated remediation**. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4), and **live incidents** (Phase 5): alarm events become deduplicated incidents with one email alert, operators acknowledge and investigate from the dashboard, every change is in an append-only audit trail, and an incident resolves only after an independent health check passes. Approved remediation and the Live Simulation Lab are **not built yet**; Live pages for them say so. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
+> **Opsentra is a work in progress.** Phases 1–7 are complete; **Phase 8 (analytics, reporting and observability)** is next. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4), and **live incidents** (Phase 5): alarm events become deduplicated incidents with one email alert, operators acknowledge and investigate from the dashboard, every change is in an append-only audit trail, and an incident resolves only after an independent health check passes. **Approved remediation** (Phase 6): an operator requests an allowlisted, hash-pinned SSM runbook, an administrator approves it, it runs exactly once, and the incident is RESOLVED only after three healthy probes (SSM "Success" alone escalates if the service is still down). **Live Simulation Lab** (Phase 7): an administrator stops Nginx on the disposable lab from the browser, with preflight checks, a one-run lock, a cooldown, a time limit and a watchdog; only the Nginx scenario is live, the Lambda and security-group scenarios are Demo-only. Analytics, reports and observability in Live are **not built yet**; Live pages for them say so. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
 
 ---
 
@@ -131,9 +131,9 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 | 3 | AWS infrastructure foundation (Terraform, Cognito, API, DynamoDB) | ✅ Complete |
 | 4 | Real AWS monitoring and inventory | ✅ Complete |
 | 5 | Incident detection, management and audit | ✅ Complete |
-| 6 | Controlled automated remediation | 🟡 **In progress** |
-| 7 | Live Simulation Lab and guardrails | ⚪ Planned |
-| 8 | Analytics, reporting and observability | ⚪ Planned |
+| 6 | Controlled automated remediation | ✅ Complete |
+| 7 | Live Simulation Lab and guardrails | ✅ Complete |
+| 8 | Analytics, reporting and observability | 🟡 **Next** |
 | 9 | Security hardening, testing and optimization | ⚪ Planned |
 | 10 | Public release, docs and portfolio case study | ⚪ Planned |
 
@@ -147,7 +147,9 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 - [x] AWS control plane (Phase 3): Terraform state, Cognito, HTTP API with JWT roles, DynamoDB, CI checks; deployed
 - [x] Live monitoring (Phase 4): disposable Nginx lab, probe, alarm, events, Live dashboard sign-in
 - [x] Live incidents (Phase 5): validated, deduplicated ingest, email alert, operator actions, audit trail, verified self-heal
-- [ ] Approved remediation and live lab scenarios (Phases 6–7)
+- [x] Approved remediation (Phase 6): request, admin approval, one hash-pinned SSM run, verified recovery or escalation
+- [x] Live Simulation Lab (Phase 7): admin-started Nginx outage with preflight, lock, cooldown, watchdog and teardown check
+- [ ] Analytics, reporting and observability (Phase 8)
 
 ---
 
@@ -198,6 +200,7 @@ See [`apps/dashboard/README.md`](apps/dashboard/README.md) for all scripts.
 - [Architecture overview](docs/architecture/overview.md): what is built now versus planned
 - [Architecture decision records](docs/adr/)
 - [Phase 1 checkpoint](docs/phases/phase-1-checkpoint.md), [design review](docs/phases/phase-1-design-review.md) and [Phase 2 checkpoint](docs/phases/phase-2-checkpoint.md)
+- [Phase 6 checkpoint](docs/phases/phase-6-checkpoint.md) and [Phase 7 checkpoint](docs/phases/phase-7-checkpoint.md): live gate evidence
 - [Brand guidelines](brand/BRAND_GUIDELINES.md): logo usage, colour, typography and dashboard branding
 
 ## Author

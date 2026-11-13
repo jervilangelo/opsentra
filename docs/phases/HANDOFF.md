@@ -6,23 +6,20 @@
 
 | | |
 |---|---|
-| **Phase** | **6 and 7: both live gates passed on 2026-11-13. Waiting for the owner's gate review.** Neither is marked complete until the owner approves (CLAUDE.md). |
-| **Phases complete** | 1–5 (approved 2026-11-12). |
-| **Branch** | `feat/remediation`, pushed. `main` still has Phase 6 up to `fa87a56`; merge after the review. |
-| **AWS now** | **Control plane deployed** with Phases 6–7 (`lab-runs` table, `lab-controller` Lambda, lab routes). **Lab destroyed**, teardown verified 02:29 UTC by `scripts/gate/verify_teardown.py`. One old incident `INC-20261112-1838F3` stays ESCALATED (its lab is gone; expected). |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.9.0) and `CLAUDE.md`. Designs: ADR-017, ADR-018. Evidence: `docs/phases/phase-6-checkpoint.md`, `docs/phases/phase-7-checkpoint.md`. |
+| **Phase** | **8: Analytics, reporting and observability. Next; not started.** |
+| **Phases complete** | 1–5 (approved 2026-11-12); 6–7 (live gates passed and approved by the owner on 2026-11-13). |
+| **Branch** | `main` (Phases 6–7 merged from `feat/remediation`). Start Phase 8 on a new feature branch. |
+| **AWS now** | **Control plane deployed** with Phases 6–7. **Lab destroyed**, teardown verified 2026-11-13 02:29 UTC (`scripts/gate/verify_teardown.py`). `INC-20261112-1838F3` stays ESCALATED (its lab is gone; expected). |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.9.1) and `CLAUDE.md`. Latest designs: ADR-017, ADR-018. Evidence: `docs/phases/phase-6-checkpoint.md`, `docs/phases/phase-7-checkpoint.md`. |
 
 ## Next
 
-1. Owner reviews the Phase 6 and Phase 7 gates (§7.1 checklist).
-2. On approval:
-   - update the CLAUDE.md "Current phase" line;
-   - update the README roadmap and badge;
-   - update the blueprint §16 checklist and version (1.9.1);
-   - merge `feat/remediation` into `main` and push.
-3. Then Phase 8 (Analytics, reporting, observability).
-
-Not tested live: the 45-minute auto-reset (unit-tested only). Still open: the SNS email confirmation (owner) and the cost check once billing data arrives.
+1. Read blueprint §7 Phase 8 and plan it with the owner.
+2. Still open:
+   - the SNS email confirmation (owner);
+   - the Phase 3–7 cost check once billing data arrives;
+   - the control-plane destroy test (deferred);
+   - the 45-minute lab auto-reset (unit-tested only).
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 

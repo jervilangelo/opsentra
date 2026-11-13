@@ -1,7 +1,7 @@
 # Phase 7 checkpoint: Live Simulation Lab and guardrails
 
 - **Branch:** `feat/remediation` (Phase 6 fixes and Phase 7 together; the owner asked to continue into Phase 7)
-- **Status:** **Live gate passed on 2026-11-13; awaiting the owner's gate review.** Deployed to the control plane; the lab was deployed for the test and destroyed (teardown verified). Phase 6's live gate passed in the same session (`phase-6-checkpoint.md`).
+- **Status:** **Complete.** Live gate passed and approved by the owner on 2026-11-13. Deployed to the control plane; the lab was deployed for the test and destroyed (teardown verified). Phase 6's live gate passed in the same session (`phase-6-checkpoint.md`).
 - **Design:** `docs/adr/ADR-018-live-simulation-lab.md` (blueprint v1.9.0)
 
 ## What was built

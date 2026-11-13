@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.9.0 (Phases 1–5 complete; Phases 6–7 live gates passed 2026-11-13, owner review pending)  
+> **Version:** 1.9.1 (Phases 1–7 complete)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phase 6 (approved remediation) and Phase 7 (Live Simulation Lab) passed their live gate tests on 2026-11-13 and await the owner's review. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
+> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation) and 7 (Live Simulation Lab) passed their live gates and were approved by the owner on 2026-11-13. Phase 8 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -534,7 +534,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** genuine Nginx failure recovered without CLI; unauthorized and arbitrary resource operations denied; failed SSM success cannot falsely mark recovered; replay does not repeat action.
 
-**Status (2026-11-13):** code and tests written (ADR-017). Live run 1 found two bugs, fixed in v1.8.1. The live gate re-run passed on 2026-11-13; owner review pending: see `docs/phases/phase-6-checkpoint.md`.
+**Status (2026-11-13):** code and tests written (ADR-017). Live run 1 found two bugs, fixed in v1.8.1. The live gate re-run passed and the owner approved the gate on 2026-11-13: see `docs/phases/phase-6-checkpoint.md`.
 
 ### Phase 7 — Live Simulation Lab and guardrails
 
@@ -546,7 +546,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** every implemented scenario can be started, inspected, recovered/reset without terminal; expired/disconnected scenarios are safely cleaned up; no non-lab resources affected.
 
-**Status (2026-11-13):** built and tested locally (ADR-018); Scenario A is live, B and C stay Demo-only (planned for Live). Deployed; the live gate test passed on 2026-11-13 (owner review pending): see `docs/phases/phase-7-checkpoint.md`.
+**Status (2026-11-13):** built and tested locally (ADR-018); Scenario A is live, B and C stay Demo-only (planned for Live). Deployed; the live gate passed and the owner approved it on 2026-11-13: see `docs/phases/phase-7-checkpoint.md`.
 
 ### Phase 8 — Analytics, reporting, and observability
 
@@ -897,10 +897,10 @@ These links support design decisions and should be rechecked for new AWS service
 - [x] Idempotent active incident correlation (live gate: duplicate, delayed, out-of-order and malformed events)
 - [x] Incident lifecycle, timelines and audit trail (user actions are audited; denied attempts are not audited in Live yet)
 - [ ] Email notifications with suppression (one SNS publish per incident verified live; email delivery awaits the owner confirming the subscription)
-- [ ] Fixed runbook request/approval/execution guardrails
-- [ ] Post-action service health verification
-- [ ] Failed-recovery escalation / reconciliation logic (reconciliation and verified self-heal done in Phase 5; escalation is Phase 6)
-- [ ] Safe Simulation Lab operations + cleanup watchdog
+- [x] Fixed runbook request/approval/execution guardrails (Phase 6, live gate 2026-11-13)
+- [x] Post-action service health verification (3 healthy probes after the fix; live)
+- [x] Failed-recovery escalation / reconciliation logic (SSM success with the service down escalated live)
+- [x] Safe Simulation Lab operations + cleanup watchdog (Phase 7: Scenario A live; the 45-minute auto-reset is unit-tested only)
 
 ### Validation and release
 - [ ] Unit/contract/integration/Playwright E2E tests
@@ -930,5 +930,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.8.0 | 2026-11-12 | ADR-017: approved remediation (hash-pinned runbook catalog, request/decision routes, self-approval allowed and flagged, coordinator with a conditional lock, SSM status events, verification by 3 consecutive healthy probes, denied attempts audited); reconciler every 2 minutes. |
 | 1.8.1 | 2026-11-13 | Fixes from Phase 6 live run 1: escalation writes used invalid `SET …, REMOVE` syntax (moto accepted it, DynamoDB did not); verification now counts probes from `max(streak start, command completed)`; the reconciler isolates errors per incident and request. No scope change. |
 | 1.9.0 | 2026-11-13 | ADR-018: Live Simulation Lab (Scenario A live; lab-controller Lambda; hash-pinned injection; preflight, confirmation, lock, cooldown, run limit; watchdog; reset never resolves; teardown verifier); `lab-runs` table; `LabScenario`/`LabRun` DTO additions; three lab routes implemented. Phase 6 and 7 live gates pending. |
+| 1.9.1 | 2026-11-13 | Phases 6 and 7 gates passed live and approved by the owner; §16 checklist updated with verified items only. Live gate fixes: recursive Decimal conversion in API responses; Live client retries throttled/unreachable requests with the same Idempotency-Key. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phases 6–7 live gates passed, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 6–7 COMPLETE; Phase 8 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
