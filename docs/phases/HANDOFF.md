@@ -1,6 +1,6 @@
 # Session handoff (read this first)
 
-> Last updated: **2026-11-12, end of session.** Update this file at the end of every working session.
+> Last updated: **2026-11-13, mid-session.** Update this file at the end of every working session.
 
 ## Where we are
 
@@ -12,7 +12,9 @@
 | **AWS now** | **Control plane deployed** with Phase 6. **Lab destroyed**, teardown verified at 08:58 UTC (EC2, EBS, EIP, VPC, SGs, alarms, log groups, probe schedule, registry, rules all 0). |
 | **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.8.0) and `CLAUDE.md`. Design for this phase: `docs/adr/ADR-017-approved-remediation.md`. Evidence: `docs/phases/phase-6-checkpoint.md`. |
 
-## Fix first tomorrow: two bugs found by the live gate test
+## Two bugs found by the live gate test
+
+> **2026-11-13: bugs 1 and 2 fixed in code (uncommitted on `feat/remediation`), not yet deployed.** `_incident_update` takes `remove=[...]`; `verify()` uses `_verified_after()`; the reconciler isolates errors per incident and request. The incident tests now check every `UpdateExpression` against DynamoDB's grammar (conftest `check_update_expression`), which fails on the old code. Incidents 79 passed, API 48 (+6 live skipped), health-check 16, ruff clean. ADR-017 and blueprint v1.8.1 updated. **Next:** the AWS CLI login had expired, so the control-plane plan has not run; then step 3.
 
 1. **Escalation writes are invalid DynamoDB syntax (serious).**
    - **Where:** `services/incidents/src/opsentra_incidents/remediation.py`, `_incident_update(...)`. It is called with `extra_sets="REMOVE activeRequestId"`, which builds `SET #s = :to, version = …, REMOVE activeRequestId`.

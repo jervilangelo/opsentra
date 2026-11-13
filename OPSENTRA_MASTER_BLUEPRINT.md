@@ -1,7 +1,7 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.8.0 (Phases 1–5 complete; Phase 6 in progress)  
-> **Date:** 2026-11-12  
+> **Version:** 1.8.1 (Phases 1–5 complete; Phase 6 in progress)  
+> **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–4 complete (gates passed 2026-11-12). The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests. Phase 5 in progress.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
@@ -333,7 +333,7 @@ Separate small on-demand tables for readability and independent permissions:
 
 **`opsentra-remediations`** (recommended fourth table): `PK=requestId`, actionKey, incidentId, resourceId, requestor, approver, status, executionId, idempotencyKey, expectedVersion, errorSummary, timestamps, expiry. Conditional transitions to guard execution races.
 
-**v1.8.0 (ADR-017):** remediation items add `runbookId`, `runbookVersion`, `documentHash` (pinned at request time), `requestedByRole`, `selfApproved`, `decisionReason`, `startedAt`; `executionId` is the SSM command ID. Incidents add `activeRequestId`. Registry items add `runbooks` (`runbookId → {document, documentHash}`) and the probe's `healthyStreak` / `healthyStreakSince`. `RemediationRequest` DTO adds optional `selfApproved`.
+**v1.8.0 (ADR-017):** remediation items add `runbookId`, `runbookVersion`, `documentHash` (pinned at request time), `requestedByRole`, `selfApproved`, `decisionReason`, `startedAt`; `executionId` is the SSM command ID. Incidents add `activeRequestId`. Registry items add `runbooks` (`runbookId → {document, documentHash}`) and the probe's `healthyStreak` / `healthyStreakSince`. `RemediationRequest` DTO adds optional `selfApproved`. **v1.8.1:** verification uses `start = max(healthyStreakSince, completedAt)` and needs HEALTHY, an unbroken `healthyStreak ≥ 3` and `lastCheckedAt ≥ start + 2 min` (at least 3 probes after the fix at the 1-minute cadence). Escalation writes use separate `SET … REMOVE activeRequestId` clauses.
 
 **`opsentra-active-correlations`** (optional fifth table): correlation key → incident ID with conditional creation and explicit clear on verified terminal close; avoid accidental duplicates across asynchronous event replay.
 
@@ -919,5 +919,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.7.0 | 2026-11-12 | ADR-016: incident pipeline (ingest, correlation, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS alerts, DLQ); §4.3 schema additions; incident write routes and `GET /v1/audit` implemented. |
 | 1.7.1 | 2026-11-12 | Phase 5 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
 | 1.8.0 | 2026-11-12 | ADR-017: approved remediation (hash-pinned runbook catalog, request/decision routes, self-approval allowed and flagged, coordinator with a conditional lock, SSM status events, verification by 3 consecutive healthy probes, denied attempts audited); reconciler every 2 minutes. |
+| 1.8.1 | 2026-11-13 | Fixes from Phase 6 live run 1: escalation writes used invalid `SET …, REMOVE` syntax (moto accepted it, DynamoDB did not); verification now counts probes from `max(streak start, command completed)`; the reconciler isolates errors per incident and request. No scope change. |
 
 **Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phase 6 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

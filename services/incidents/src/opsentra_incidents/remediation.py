@@ -9,13 +9,16 @@ Invariants:
   * exactly one SSM command per request: the coordinator takes a conditional
     lock (APPROVED -> RUNNING, no commandId) before sending, and never resends;
   * SSM Success moves the incident to VERIFYING, never to RESOLVED;
-  * RESOLVED needs 3 consecutive HEALTHY probes, all after the command finished,
-    and the alarm OK; otherwise ESCALATED after 10 minutes (owner decision);
+  * RESOLVED needs an unbroken HEALTHY streak of >= 3 probes, the latest one at
+    least 2 minutes after max(streak start, command finished), and the alarm OK
+    (>= 3 probes after the fix at the 1-minute cadence); otherwise ESCALATED
+    10 minutes after the command finished (owner decision);
   * failed, rejected, expired or timed-out requests never execute and escalate.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 from collections.abc import Mapping
@@ -41,6 +44,8 @@ from .core import (
     ser,
     ser_item,
 )
+
+logger = logging.getLogger("opsentra-remediation")
 
 APPROVAL_TTL = timedelta(minutes=15)
 DISPATCH_GRACE = timedelta(minutes=1)  # APPROVED but not picked up -> reconciler dispatches
@@ -112,15 +117,29 @@ def requests(store: Store) -> list[dict[str, Any]]:
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
 
+_ATTR = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,63}$")
+
+
 def _incident_update(
-    store: Store, incident: Mapping[str, Any], to: str, extra_sets: str = "", extra_values: dict[str, Any] | None = None
+    store: Store,
+    incident: Mapping[str, Any],
+    to: str,
+    extra_sets: str = "",
+    extra_values: dict[str, Any] | None = None,
+    remove: list[str] | None = None,
 ) -> dict[str, Any]:
-    sets = "SET #s = :to, version = version + :one" + (f", {extra_sets}" if extra_sets else "")
+    """One conditional incident update. SET and REMOVE are separate clauses:
+    `SET a = :a REMOVE b` (no comma). moto accepts a comma there; DynamoDB does not."""
+    expr = "SET #s = :to, version = version + :one" + (f", {extra_sets}" if extra_sets else "")
+    if remove:
+        if not all(_ATTR.match(a) for a in remove):
+            raise ValueError("invalid attribute name")
+        expr += " REMOVE " + ", ".join(remove)
     return {
         "Update": {
             "TableName": store.t.incidents,
             "Key": {"incidentId": {"S": incident["incidentId"]}},
-            "UpdateExpression": sets,
+            "UpdateExpression": expr,
             "ConditionExpression": "version = :ver AND #s = :from",
             "ExpressionAttributeNames": {"#s": "state"},
             "ExpressionAttributeValues": {
@@ -345,7 +364,7 @@ def decide_remediation(
     if approve:
         items.append(_incident_update(store, incident, "REMEDIATING"))
     else:
-        items.append(_incident_update(store, incident, "ESCALATED", "REMOVE activeRequestId"))
+        items.append(_incident_update(store, incident, "ESCALATED", remove=["activeRequestId"]))
         items.append(
             store.audit_put(
                 incident["incidentId"],
@@ -393,7 +412,7 @@ def expire(store: Store, req: Mapping[str, Any], incident: Mapping[str, Any]) ->
         ),
     ]
     if incident["state"] == "AWAITING_APPROVAL" and incident.get("activeRequestId") == rid:
-        items.append(_incident_update(store, incident, "ESCALATED", "REMOVE activeRequestId"))
+        items.append(_incident_update(store, incident, "ESCALATED", remove=["activeRequestId"]))
         items.append(
             store.audit_put(
                 incident["incidentId"],
@@ -539,7 +558,7 @@ def finish(store: Store, request_id: str, outcome: str, summary: str | None = No
             )
         )
     else:
-        items.append(_incident_update(store, incident, "ESCALATED", "REMOVE activeRequestId"))
+        items.append(_incident_update(store, incident, "ESCALATED", remove=["activeRequestId"]))
         items.append(
             store.audit_put(
                 incident["incidentId"],
@@ -575,25 +594,42 @@ def on_ssm_status(store: Store, event: Mapping[str, Any]) -> str:
     )
 
 
+VERIFY_SPAN = timedelta(minutes=STREAK_REQUIRED - 1)  # 1-minute probes: 3 probes span >= 2 minutes
+
+
+def _verified_after(res: Mapping[str, Any], done: Any) -> bool:
+    """HEALTHY, an unbroken streak of >= 3, and the latest probe at least
+    VERIFY_SPAN after max(streak start, command finished). At the 1-minute
+    probe cadence that is >= 3 healthy probes, all after the fix finished.
+    A streak that began just before SSM reported Success still counts, but
+    only probes after completion can satisfy the span."""
+    since, checked = res.get("healthyStreakSince"), res.get("lastCheckedAt")
+    if res.get("health") != "HEALTHY" or int(res.get("healthyStreak") or 0) < STREAK_REQUIRED:
+        return False
+    if not since or not checked:
+        return False
+    start = max(parse_iso(str(since)), done)
+    return parse_iso(str(checked)) >= start + VERIFY_SPAN
+
+
 def verify(store: Store, incident: Mapping[str, Any], resource: Mapping[str, Any] | None, alarm_ok: bool) -> str:
-    """VERIFYING -> RESOLVED with 3 consecutive healthy probes after the command
-    finished and the alarm OK; ESCALATED once the window passes without that."""
+    """VERIFYING -> RESOLVED when _verified_after() holds and the alarm is OK;
+    ESCALATED once the window passes without that."""
     req = request(store, str(incident.get("activeRequestId", "")))
     if not req or req.get("status") != "SUCCEEDED" or not req.get("completedAt"):
         return "waiting"
     done = parse_iso(req["completedAt"])
     res = resource or {}
-    streak = int(res.get("healthyStreak") or 0)
-    since = res.get("healthyStreakSince")
-    if alarm_ok and res.get("health") == "HEALTHY" and streak >= STREAK_REQUIRED and since and parse_iso(since) > done:
+    if alarm_ok and _verified_after(res, done):
         evidence = {
             "check": "independent HTTP probe",
-            "consecutiveHealthyChecks": streak,
-            "streakSince": since,
+            "consecutiveHealthyChecks": int(res.get("healthyStreak") or 0),
+            "streakSince": res.get("healthyStreakSince"),
             "afterRemediation": req["completedAt"],
             "requestId": req["requestId"],
         }
         return "resolved" if resolve(store, incident, str(res.get("lastCheckedAt")), evidence) else "waiting"
+    streak = int(res.get("healthyStreak") or 0)
     if parse_iso(now_iso()) > done + VERIFY_WINDOW:
         now = now_iso()
         corr = incident["correlationKey"]
@@ -601,7 +637,7 @@ def verify(store: Store, incident: Mapping[str, Any], resource: Mapping[str, Any
             _transact(
                 store,
                 [
-                    _incident_update(store, incident, "ESCALATED", "REMOVE activeRequestId"),
+                    _incident_update(store, incident, "ESCALATED", remove=["activeRequestId"]),
                     store.audit_put(
                         incident["incidentId"],
                         now,
@@ -631,41 +667,49 @@ def verify(store: Store, incident: Mapping[str, Any], resource: Mapping[str, Any
 
 def reconcile(store: Store, ssm: Any, ec2: Any) -> dict[str, int]:
     """Backstop for lost events: expiry, undispatched approvals, stuck commands."""
-    report = {"expired": 0, "dispatched": 0, "finished": 0}
+    report = {"expired": 0, "dispatched": 0, "finished": 0, "errors": 0}
     now = parse_iso(now_iso())
     for req in requests(store):
-        status = req.get("status")
-        if status == "PENDING" and now > parse_iso(req["expiresAt"]):
-            incident = store.incident(req["incidentId"])
-            if incident and expire(store, req, incident):
-                report["expired"] += 1
-        elif status == "APPROVED" and req.get("decidedAt") and now > parse_iso(req["decidedAt"]) + DISPATCH_GRACE:
-            if dispatch(store, ssm, ec2, req["requestId"]) != "skipped":
-                report["dispatched"] += 1
-        elif status == "RUNNING" and req.get("startedAt"):
-            started = parse_iso(req["startedAt"])
-            if not req.get("executionId"):
-                if now > started + STATUS_POLL_AFTER and finish(
-                    store, req["requestId"], "FAILED", "Dispatch did not complete; not retried"
-                ):
-                    report["finished"] += 1
-                continue
-            if now > started + STATUS_POLL_AFTER:
-                status_now = _invocation_status(ssm, req["executionId"], req["resourceId"])
-                if status_now in SSM_TERMINAL:
-                    outcome = SSM_TERMINAL[status_now]
-                    if finish(
-                        store,
-                        req["requestId"],
-                        outcome,
-                        None if outcome == "SUCCEEDED" else f"SSM status: {status_now}",
-                    ):
-                        report["finished"] += 1
-                elif now > started + RUN_TIMEOUT and finish(
-                    store, req["requestId"], "FAILED", "No result from SSM within 10 minutes"
-                ):
-                    report["finished"] += 1
+        try:
+            _reconcile_one(store, ssm, ec2, req, now, report)
+        except Exception:  # noqa: BLE001 - one bad item must not block the rest
+            logger.exception("reconcile failed for %s", req.get("requestId"))
+            report["errors"] += 1
     return report
+
+
+def _reconcile_one(store: Store, ssm: Any, ec2: Any, req: Mapping[str, Any], now: Any, report: dict[str, int]) -> None:
+    status = req.get("status")
+    if status == "PENDING" and now > parse_iso(req["expiresAt"]):
+        incident = store.incident(req["incidentId"])
+        if incident and expire(store, req, incident):
+            report["expired"] += 1
+    elif status == "APPROVED" and req.get("decidedAt") and now > parse_iso(req["decidedAt"]) + DISPATCH_GRACE:
+        if dispatch(store, ssm, ec2, req["requestId"]) != "skipped":
+            report["dispatched"] += 1
+    elif status == "RUNNING" and req.get("startedAt"):
+        started = parse_iso(req["startedAt"])
+        if not req.get("executionId"):
+            if now > started + STATUS_POLL_AFTER and finish(
+                store, req["requestId"], "FAILED", "Dispatch did not complete; not retried"
+            ):
+                report["finished"] += 1
+            return
+        if now > started + STATUS_POLL_AFTER:
+            status_now = _invocation_status(ssm, req["executionId"], req["resourceId"])
+            if status_now in SSM_TERMINAL:
+                outcome = SSM_TERMINAL[status_now]
+                if finish(
+                    store,
+                    req["requestId"],
+                    outcome,
+                    None if outcome == "SUCCEEDED" else f"SSM status: {status_now}",
+                ):
+                    report["finished"] += 1
+            elif now > started + RUN_TIMEOUT and finish(
+                store, req["requestId"], "FAILED", "No result from SSM within 10 minutes"
+            ):
+                report["finished"] += 1
 
 
 def _invocation_status(ssm: Any, command_id: str, instance_id: str) -> str | None:

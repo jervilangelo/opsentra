@@ -6,7 +6,17 @@ from typing import Any
 
 import pytest
 
-from conftest import ACCOUNT, DOC_HASH, REGION, RESOURCE, alarm_event, incidents, ingest_event, timeline
+from conftest import (
+    ACCOUNT,
+    DOC_HASH,
+    REGION,
+    RESOURCE,
+    alarm_event,
+    check_update_expression,
+    incidents,
+    ingest_event,
+    timeline,
+)
 from opsentra_incidents import coordinator, core, remediation
 
 
@@ -167,16 +177,18 @@ def test_full_flow_resolves_only_after_three_healthy_probes(
     assert out == {"result": "updated"}
     assert inc(store, investigating)["state"] == "VERIFYING"
     done = remediation.request(store, rid)["completedAt"]
-    after = core.iso(core.parse_iso(done) + timedelta(minutes=1))
-    before = core.iso(core.parse_iso(done) - timedelta(minutes=1))
+    at = lambda m: core.iso(core.parse_iso(done) + timedelta(minutes=m))  # noqa: E731
+    first, after = at(0.5), at(2.5)  # probes at +0.5, +1.5, +2.5 minutes
 
     res = lambda: store.get("res", {"resourceId": RESOURCE})  # noqa: E731
-    set_probe(store, health="HEALTHY", streak=2, since=after, checked=after)
+    set_probe(store, health="HEALTHY", streak=2, since=first, checked=at(1.5))  # only 2 probes
     assert remediation.verify(store, inc(store, investigating), res(), alarm_ok=True) == "waiting"
-    set_probe(store, health="HEALTHY", streak=3, since=before, checked=after)  # streak began before the fix
+    set_probe(store, health="HEALTHY", streak=3, since=at(-2), checked=at(0.5))  # 2 of 3 before the fix
     assert remediation.verify(store, inc(store, investigating), res(), alarm_ok=True) == "waiting"
-    set_probe(store, health="HEALTHY", streak=3, since=after, checked=after)
-    later = core.iso(core.parse_iso(done) + timedelta(minutes=4))  # the probes are in the past now
+    set_probe(store, health="UNHEALTHY", streak=0, since=first, checked=after)  # streak broken
+    assert remediation.verify(store, inc(store, investigating), res(), alarm_ok=True) == "waiting"
+    set_probe(store, health="HEALTHY", streak=3, since=first, checked=after)
+    later = at(4)  # the probes are in the past now
     monkeypatch.setattr(core, "now_iso", lambda: later)
     monkeypatch.setattr(remediation, "now_iso", lambda: later)
     assert remediation.verify(store, inc(store, investigating), res(), alarm_ok=False) == "waiting"
@@ -462,3 +474,109 @@ def test_reconciler_run_verifies_and_resolves(
     assert reconciler.run(store, FakeCloudWatch("ALARM"), ACCOUNT, REGION, "", ssm, FakeEC2())["resolved"] == 0
     assert reconciler.run(store, FakeCloudWatch("OK"), ACCOUNT, REGION, "", ssm, FakeEC2())["resolved"] == 1
     assert inc(store, investigating)["state"] == "RESOLVED"
+
+
+# ------------------------------------------- regressions from live run 1 ---
+
+
+def test_streak_that_began_just_before_ssm_success_still_verifies(
+    store: core.Store, investigating: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live run 1: the probe streak began at 08:42:23, SSM completedAt was
+    08:42:24. A genuine recovery must still resolve, but only once the probes
+    after completion span 2 minutes (>= 3 probes after the fix)."""
+    ssm = FakeSSM()
+    rid = approved_and_sent(store, investigating, ssm)
+    coordinator.handle(ssm_event("cmd-1", "Success"), store, ssm, FakeEC2(), ACCOUNT, REGION)
+    done = core.parse_iso(remediation.request(store, rid)["completedAt"])
+    since = core.iso(done - timedelta(seconds=1))
+    res = lambda: store.get("res", {"resourceId": RESOURCE})  # noqa: E731
+
+    set_probe(store, health="HEALTHY", streak=3, since=since, checked=core.iso(done + timedelta(minutes=1)))
+    assert remediation.verify(store, inc(store, investigating), res(), alarm_ok=True) == "waiting"
+    checked = core.iso(done + timedelta(minutes=2))
+    set_probe(store, health="HEALTHY", streak=4, since=since, checked=checked)
+    later = core.iso(done + timedelta(minutes=3))
+    monkeypatch.setattr(core, "now_iso", lambda: later)
+    monkeypatch.setattr(remediation, "now_iso", lambda: later)
+    assert remediation.verify(store, inc(store, investigating), res(), alarm_ok=True) == "resolved"
+    assert inc(store, investigating)["verifiedHealthyAt"] == checked
+
+
+def test_escalation_update_expression_is_valid_dynamodb(store: core.Store, investigating: str) -> None:
+    """moto accepted `SET ..., REMOVE x`; real DynamoDB rejects it."""
+    update = remediation._incident_update(store, inc(store, investigating), "ESCALATED", remove=["activeRequestId"])
+    expr = update["Update"]["UpdateExpression"]
+    assert expr == "SET #s = :to, version = version + :one REMOVE activeRequestId"
+    check_update_expression(expr)
+    with pytest.raises(ValueError):
+        remediation._incident_update(store, inc(store, investigating), "ESCALATED", remove=["a, b = :x"])
+
+
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "SET #s = :to, version = version + :one, REMOVE activeRequestId",
+        "SET a = :a SET b = :b",
+        "REMOVE a = :a",
+        "a = :a",
+    ],
+)
+def test_the_strict_expression_check_rejects_invalid_syntax(expr: str) -> None:
+    with pytest.raises(AssertionError):
+        check_update_expression(expr)
+
+
+@pytest.mark.parametrize("path", ["reject", "expire", "ssm_failed", "verify_failed"], ids=lambda p: f"escalates-on-{p}")
+def test_every_escalation_path_clears_the_active_request(
+    store: core.Store, investigating: str, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    ssm = FakeSSM()
+    if path == "reject":
+        rid = ask(store, investigating)["request"]["requestId"]
+        decide(store, rid, investigating, decision="REJECT")
+    elif path == "expire":
+        ask(store, investigating)
+        shift(monkeypatch, 16)
+        assert remediation.reconcile(store, ssm, FakeEC2())["expired"] == 1
+    else:
+        approved_and_sent(store, investigating, ssm)
+        status = "Failed" if path == "ssm_failed" else "Success"
+        coordinator.handle(ssm_event("cmd-1", status), store, ssm, FakeEC2(), ACCOUNT, REGION)
+        if path == "verify_failed":
+            shift(monkeypatch, 11)
+            assert remediation.verify(store, inc(store, investigating), None, alarm_ok=False) == "escalated"
+    final = inc(store, investigating)
+    assert final["state"] == "ESCALATED" and "activeRequestId" not in final
+
+
+def test_one_bad_request_does_not_stop_the_reconcile_run(
+    store: core.Store, investigating: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store.c.put_item(
+        TableName="rem",
+        Item=core.ser_item({"requestId": "REQ-BAD", "status": "PENDING", "expiresAt": "not-a-time", "incidentId": "x"}),
+    )
+    ask(store, investigating)
+    shift(monkeypatch, 16)
+    report = remediation.reconcile(store, FakeSSM(), FakeEC2())
+    assert (report["expired"], report["errors"]) == (1, 1)
+    assert inc(store, investigating)["state"] == "ESCALATED"
+
+
+def test_one_bad_incident_does_not_stop_the_reconciler(
+    store: core.Store, investigating: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from opsentra_incidents import reconciler
+
+    ssm = FakeSSM()
+    approved_and_sent(store, investigating, ssm)
+    coordinator.handle(ssm_event("cmd-1", "Success"), store, ssm, FakeEC2(), ACCOUNT, REGION)
+
+    def boom(*_: Any, **__: Any) -> str:
+        raise RuntimeError("ValidationException")
+
+    monkeypatch.setattr(remediation, "verify", boom)
+    monkeypatch.setattr(remediation, "reconcile", boom)
+    report = reconciler.run(store, FakeCloudWatch("OK"), ACCOUNT, REGION, "", ssm, FakeEC2())
+    assert report["errors"] == 2 and report["checked"] == 1

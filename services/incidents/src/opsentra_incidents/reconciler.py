@@ -55,7 +55,11 @@ def run(
     states = alarm_states(cloudwatch, sorted(by_alarm)) if by_alarm else {}
     report: dict[str, Any] = {"opened": 0, "cleared": 0, "resolved": 0, "checked": len(states)}
     if store.t.remediations and ssm is not None and ec2 is not None:
-        report |= remediation.reconcile(store, ssm, ec2)
+        try:
+            report |= remediation.reconcile(store, ssm, ec2)
+        except Exception:  # noqa: BLE001
+            logger.exception("remediation reconcile failed")
+            report["errors"] = report.get("errors", 0) + 1
 
     # 1. Repair missed ALARM events.
     for name, st in states.items():
@@ -87,33 +91,47 @@ def run(
     # 2 and 3. Active incidents: missed OK, then verified self-heal.
     registry_by_id = {r["resourceId"]: r for r in registry}
     for corr in store.active_correlations():
-        incident = store.incident(corr["activeIncidentId"])
-        if not incident or incident.get("state") not in core.ACTIVE:
-            continue
-        st = states.get(str(incident.get("alarmName", "")))
-        if incident.get("state") == "VERIFYING" and store.t.remediations:
-            res = registry_by_id.get(incident["resourceId"])
-            if remediation.verify(store, incident, res, bool(st and st["state"] == "OK")) == "resolved":
-                report["resolved"] += 1
-            continue
-        if not st or st["state"] != "OK":
-            continue
-        if not incident.get("signalClearedAt"):
-            out = core.mark_cleared(
-                store,
-                correlation_key=incident["correlationKey"],
-                alarm_name=incident["alarmName"],
-                signal_at=st["at"],
-                source="reconciler",
-            )
-            if out.result == "cleared":
-                report["cleared"] += 1
-            continue
-        res = registry_by_id.get(incident["resourceId"]) or {}
-        if res.get("health") == "HEALTHY" and res.get("lastCheckedAt"):
-            if core.resolve_verified(store, incident, str(res["lastCheckedAt"])):
-                report["resolved"] += 1
+        try:
+            _active(store, corr, states, registry_by_id, report)
+        except Exception:  # noqa: BLE001 - one bad incident must not block the rest
+            logger.exception("reconcile failed for %s", corr.get("activeIncidentId"))
+            report["errors"] = report.get("errors", 0) + 1
     return report
+
+
+def _active(
+    store: core.Store,
+    corr: Mapping[str, Any],
+    states: dict[str, dict[str, Any]],
+    registry_by_id: dict[str, Mapping[str, Any]],
+    report: dict[str, Any],
+) -> None:
+    incident = store.incident(corr["activeIncidentId"])
+    if not incident or incident.get("state") not in core.ACTIVE:
+        return
+    st = states.get(str(incident.get("alarmName", "")))
+    if incident.get("state") == "VERIFYING" and store.t.remediations:
+        res = registry_by_id.get(incident["resourceId"])
+        if remediation.verify(store, incident, res, bool(st and st["state"] == "OK")) == "resolved":
+            report["resolved"] += 1
+        return
+    if not st or st["state"] != "OK":
+        return
+    if not incident.get("signalClearedAt"):
+        out = core.mark_cleared(
+            store,
+            correlation_key=incident["correlationKey"],
+            alarm_name=incident["alarmName"],
+            signal_at=st["at"],
+            source="reconciler",
+        )
+        if out.result == "cleared":
+            report["cleared"] += 1
+        return
+    res = registry_by_id.get(incident["resourceId"]) or {}
+    if res.get("health") == "HEALTHY" and res.get("lastCheckedAt"):
+        if core.resolve_verified(store, incident, str(res["lastCheckedAt"])):
+            report["resolved"] += 1
 
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:

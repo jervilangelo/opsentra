@@ -1,4 +1,5 @@
 import os
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -26,10 +27,39 @@ def aws_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(k, v)
 
 
+_CLAUSE = re.compile(r"\b(SET|REMOVE|ADD|DELETE)\b")
+
+
+def check_update_expression(expr: str) -> None:
+    """DynamoDB's UpdateExpression grammar, which moto does not enforce: each
+    clause keyword at most once, clauses separated by whitespace only (no comma
+    before the next keyword), REMOVE takes bare attribute paths."""
+    parts = _CLAUSE.split(expr)
+    assert parts[0].strip() == "", f"text before the first clause: {expr!r}"
+    seen: set[str] = set()
+    for kw, body in zip(parts[1::2], parts[2::2], strict=True):
+        assert kw not in seen, f"{kw} appears twice: {expr!r}"
+        seen.add(kw)
+        text = body.strip()
+        assert text and not text.endswith(",") and not text.startswith(","), f"bad {kw} clause: {expr!r}"
+        if kw == "REMOVE":
+            assert all(re.fullmatch(r"[#A-Za-z][\w.#\[\]]*", a.strip()) for a in text.split(",")), expr
+
+
+def _strict(params: dict[str, Any], **_: Any) -> None:
+    items = params.get("TransactItems") or [{"Update": params}]
+    for item in items:
+        expr = (item.get("Update") or {}).get("UpdateExpression")
+        if expr:
+            check_update_expression(expr)
+
+
 @pytest.fixture
 def store() -> Iterator[core.Store]:
     with mock_aws():
         ddb = boto3.client("dynamodb", region_name=REGION)
+        ddb.meta.events.register("provide-client-params.dynamodb.UpdateItem", _strict)
+        ddb.meta.events.register("provide-client-params.dynamodb.TransactWriteItems", _strict)
 
         def table(name: str, keys: list[tuple[str, str]]) -> None:
             ddb.create_table(
