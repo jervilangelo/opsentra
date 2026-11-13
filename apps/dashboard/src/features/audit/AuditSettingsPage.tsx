@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useMode } from '@/modes/mode-store';
-import { useCurrentRole } from '@/modes/session';
+import { useCurrentRole, useLiveMe } from '@/modes/session';
 import { ROLE_LABEL } from '@/types/display';
 import { usePreferences, useView, type ThemePreference } from '@/stores/preferences';
 import { EasyActivity } from '@/features/easy/EasyActivity';
@@ -55,6 +55,7 @@ function ThemePicker() {
 export function AuditSettingsPage() {
   const mode = useMode();
   const role = useCurrentRole();
+  const me = useLiveMe();
   const view = useView();
   return (
     <>
@@ -102,20 +103,29 @@ export function AuditSettingsPage() {
               </p>
               <p>
                 Signed in:{' '}
-                <span className="text-muted-foreground">No. Demo Mode needs no account.</span>
+                <span className="text-muted-foreground">
+                  {mode === 'demo'
+                    ? 'No. Demo Mode needs no account.'
+                    : me.data
+                      ? `Yes, as ${me.data.data.username ?? 'your Cognito user'}`
+                      : 'No'}
+                </span>
               </p>
               <p>
                 Role:{' '}
                 <span className="text-muted-foreground">
-                  {role
-                    ? `${ROLE_LABEL[role]} (simulated, Demo only; change it in the demo bar)`
-                    : 'None (sign-in arrives in Phase 3)'}
+                  {!role
+                    ? 'None'
+                    : mode === 'demo'
+                      ? `${ROLE_LABEL[role]} (simulated, Demo only; change it in the demo bar)`
+                      : `${ROLE_LABEL[role]} (from your Cognito group, enforced by the backend)`}
                 </span>
               </p>
             </CardContent>
           </Card>
-          <PlannedPanel phase="Phase 5+" title="Thresholds and toggles">
-            Backend-controlled settings, changed only through reviewed configuration.
+          <PlannedPanel phase="future" title="Thresholds and toggles in the UI">
+            Alarm thresholds, probe cadence and guardrails are set in Terraform and changed only
+            through reviewed configuration. Editing them here is not built.
           </PlannedPanel>
         </TabsContent>
       </Tabs>

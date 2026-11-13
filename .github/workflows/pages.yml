@@ -1,0 +1,83 @@
+name: pages
+
+# Publishes the dashboard to GitHub Pages (blueprint §7 Phase 10).
+# Demo Mode works for every visitor with no sign-in. Live AWS Mode is available
+# only when the repository variables below are set; they are the public
+# VITE_* values from blueprint §9.3 (no secrets exist in a browser build).
+#   VITE_API_BASE_URL, VITE_COGNITO_USER_POOL_ID, VITE_COGNITO_CLIENT_ID, VITE_COGNITO_DOMAIN
+# This workflow never touches AWS.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/dashboard/**'
+      - 'scripts/release/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: apps/dashboard
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Build for /opsentra/
+        env:
+          VITE_APP_MODE_DEFAULT: demo
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+          VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
+        run: npx tsc -b && npx vite build --base /opsentra/
+
+      - name: SPA fallback for deep links
+        run: cp dist/index.html dist/404.html
+
+      - name: Check the bundle before publishing
+        run: python ../../scripts/release/check_bundle.py dist --base /opsentra/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write # GitHub Pages deployment token, not AWS
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

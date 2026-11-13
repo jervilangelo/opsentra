@@ -4,25 +4,26 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-/** Static view of blueprint §3.1–3.2. Nothing here is deployed yet. */
+/** Static view of the system as built (blueprint §3.1–3.2; ADR-014 to ADR-020). */
 const PLANES = [
   {
-    name: 'Frontend Demo',
-    scope: 'Static GitHub Pages build with synthetic data',
-    posture: 'No AWS credentials or privileged calls',
+    name: 'Frontend',
+    scope: 'Static GitHub Pages build: Demo Mode with synthetic data, Live Mode through the API',
+    posture: 'No AWS credentials; strict Content Security Policy; public config only',
     lifetime: 'Persistent',
   },
   {
     name: 'Control plane',
-    scope: 'Cognito, API Gateway, Lambda, DynamoDB, EventBridge, SNS',
-    posture: 'Authenticated, least privilege',
-    lifetime: 'Long-lived when affordable',
+    scope:
+      'Cognito, API Gateway, 5 Lambdas (API, ingest, reconciler, coordinator, lab controller), DynamoDB, EventBridge, SNS, CloudWatch dashboard',
+    posture: 'JWT on every route, backend role checks, least-privilege IAM',
+    lifetime: 'Deployed in ap-southeast-1',
   },
   {
     name: 'Lab plane',
-    scope: 'Disposable EC2/Nginx, Lambda regression, test security group',
-    posture: 'Tagged opsentra:lab=true, allowlisted, teardown mandatory',
-    lifetime: 'Created only when testing',
+    scope: 'Disposable EC2/Nginx, its health-probe Lambda and alarm, and two fixed SSM documents',
+    posture: 'Tagged opsentra:lab=true, hash-pinned documents, self-terminating, teardown verified',
+    lifetime: 'Created only for a demo or test',
   },
   {
     name: 'Terraform state',
@@ -33,19 +34,19 @@ const PLANES = [
 ];
 
 const DETECTION_FLOW = [
-  'Health check Lambda probes the Nginx lab',
-  'CloudWatch alarm enters ALARM',
+  'Health-check Lambda probes the Nginx lab every minute',
+  'CloudWatch alarm enters ALARM after 3 failed probes',
   'EventBridge rule routes the alarm state change',
-  'Incident ingest Lambda writes a deduplicated incident to DynamoDB',
+  'Incident ingest Lambda writes a deduplicated incident to DynamoDB (one email alert)',
   'Dashboard reads it through the authenticated API',
 ];
 
 const RECOVERY_FLOW = [
   'Operator requests an allowlisted runbook',
   'Administrator approves (identity, reason and correlation ID audited)',
-  'Action coordinator runs the fixed SSM document on the lab instance',
-  'Independent health checks verify recovery',
-  'Incident is marked RESOLVED only after verification',
+  'Coordinator runs the hash-pinned SSM document once, on the tagged lab instance only',
+  'Three healthy probes after the fix, with the alarm OK',
+  'Incident is marked RESOLVED only after that verification; otherwise ESCALATED',
 ];
 
 function Flow({ title, steps }: { title: string; steps: string[] }) {
@@ -80,7 +81,7 @@ export function ArchitecturePage() {
         description="Planes, boundaries and event flow of Opsentra."
         actions={
           <Badge variant="outline" className="text-muted-foreground">
-            Planned architecture · not yet deployed
+            As built · control plane deployed, lab on demand
           </Badge>
         }
       />
@@ -112,6 +113,29 @@ export function ArchitecturePage() {
             <Flow title="Detect" steps={DETECTION_FLOW} />
             <Flow title="Respond and recover" steps={RECOVERY_FLOW} />
           </div>
+        </section>
+        <section aria-labelledby="scope-heading" className="flex flex-col gap-3">
+          <h2 id="scope-heading" className="text-lg">
+            What runs where
+          </h2>
+          <Card>
+            <CardContent className="pt-6 text-sm">
+              <ul className="flex flex-col gap-2">
+                <li>
+                  <span className="font-medium">Live and Demo:</span> Scenario A (Nginx outage),
+                  incidents, approved remediation, verified recovery, audit, analytics, reports.
+                </li>
+                <li>
+                  <span className="font-medium">Demo only:</span> Scenario B (Lambda regression and
+                  rollback) and Scenario C (security group exposure).
+                </li>
+                <li>
+                  <span className="font-medium">Not built:</span> printable HTML reports, tracing,
+                  multi-account or multi-region operation.
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
         </section>
       </div>
     </>

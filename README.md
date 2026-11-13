@@ -8,207 +8,160 @@
 
 ### Monitor. Detect. Respond. Recover.
 
-A UI-first cloud operations and incident response platform for AWS infrastructure.
+A UI-first cloud operations and incident response platform for AWS.
 
-![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-FBBF24?style=flat-square)
-![Phase 10 of 10](https://img.shields.io/badge/phase-10%20of%2010-38BDF8?style=flat-square)
-![AWS](https://img.shields.io/badge/cloud-AWS-0B1220?style=flat-square)
+**[▶ Try the live demo](https://jervilangelo.github.io/opsentra/)** · no sign-in needed · synthetic data, clearly labelled
+
+![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-34D399?style=flat-square)
+![AWS](https://img.shields.io/badge/cloud-AWS%20ap--southeast--1-0B1220?style=flat-square)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-0B1220?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-pytest%20·%20Vitest%20·%20Playwright-38BDF8?style=flat-square)
 
 </div>
 
-> [!WARNING]
-> **Opsentra is a work in progress.** Phases 1–9 are complete; **Phase 10 (public release, docs and portfolio case study)** is in progress. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4), and **live incidents** (Phase 5): alarm events become deduplicated incidents with one email alert, operators acknowledge and investigate from the dashboard, every change is in an append-only audit trail, and an incident resolves only after an independent health check passes. **Approved remediation** (Phase 6): an operator requests an allowlisted, hash-pinned SSM runbook, an administrator approves it, it runs exactly once, and the incident is RESOLVED only after three healthy probes (SSM "Success" alone escalates if the service is still down). **Live Simulation Lab** (Phase 7): an administrator stops Nginx on the disposable lab from the browser, with preflight checks, a one-run lock, a cooldown, a time limit and a watchdog; only the Nginx scenario is live, the Lambda and security-group scenarios are Demo-only. **Analytics and reporting** (Phase 8): Live MTTA/MTTR with medians and denominators, runbook and recovery outcomes, availability from real probes (shown as unknown when there are none), sanitized JSON/CSV reports, structured logs and a CloudWatch operations dashboard; every Live number was reconciled with its source data. A printable HTML report and tracing are not built. **Security hardening** (Phase 9): an audit with no critical or high findings, narrowed runbook permissions, a Content Security Policy, a threat model, runbooks and repeatable security checks. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
-
 ---
 
-## What is Opsentra?
+## What it is
 
-Opsentra helps IT administrators, cloud engineers and operations teams **monitor AWS infrastructure, detect incidents, investigate them, and run controlled, approved recovery workflows**, all from one web interface, with no AWS Console hopping and no terminal required for the demo.
+Opsentra lets an operations team **watch AWS workloads, detect an outage, investigate it, and run an approved, audited recovery**, all from one web app, with no terminal and no console hopping. An incident is closed only when independent health checks prove the service works again, not when a command reports "Success".
 
-Its mission: **make cloud infrastructure easier to observe, understand, and recover.**
+It is a portfolio project that is **real where it says so**: the Live mode runs against AWS infrastructure built with Terraform, and every live claim below was tested against that infrastructure. The public site runs the **Demo Mode**, a deterministic simulation of the same workflow that needs no account and calls no AWS endpoint.
 
-The project is also a portfolio piece that demonstrates practical cloud engineering: Infrastructure as Code, serverless architecture, event-driven incident detection, least-privilege security, observability and cost discipline.
+<p align="center">
+  <img src="docs/screenshots/live/incident-resolved.png" alt="A live incident: Nginx outage on the lab web server, recovered by an approved runbook and verified by health checks, with its full timeline" width="900">
+  <br><sub>Live AWS Mode: a real Nginx outage, recovered by an approved runbook and resolved only after the probe verified health.</sub>
+</p>
 
-### The scenario
+## Two modes, never mixed
 
-Opsentra is designed around **HarborPoint Solutions**, a *fictional* ~200-person organization with a lean IT team and three sandbox workloads:
-
-| Workload | AWS services | What can go wrong |
+| | **Demo Mode** (public) | **Live AWS Mode** (authenticated) |
 |---|---|---|
-| Corporate web server | EC2, Amazon Linux, Nginx | Nginx stops responding while the instance keeps running |
-| Ticketing API | API Gateway, Lambda, DynamoDB | A new Lambda version raises 5xx errors |
-| Document repository | S3 | Misconfiguration or failed access checks |
+| Who | Anyone, no sign-in | Cognito users in the `viewer`, `operator` or `admin` group (no self sign-up) |
+| Data | Deterministic synthetic data, labelled `DEMO — SYNTHETIC DATA` on every screen and export | The Opsentra API in `ap-southeast-1`, labelled `LIVE AWS — ap-southeast-1` |
+| AWS calls | None (enforced by tests) | JWT-authorised API only |
+| If something fails | n/a | Fails closed: shows an error, never substitutes demo data |
 
----
+## What works
 
-## Planned capabilities
+| Capability | Live AWS | Demo | Evidence |
+|---|---|---|---|
+| Monitoring of a disposable EC2/Nginx lab: HTTP probe every minute, CloudWatch metric and alarm | ✅ | ✅ | [Phase 4](docs/adr/ADR-015-phase4-lab-and-live-adapter.md) |
+| Incident detection: alarm → EventBridge → deduplicated incident, one SNS alert per incident (email delivery needs the subscription confirmed), reconciler for missed events | ✅ | ✅ | [Phase 5 checkpoint](docs/phases/phase-5-checkpoint.md) |
+| Incident workflow: acknowledge, investigate, append-only audit trail, denied attempts recorded | ✅ | ✅ | [ADR-016](docs/adr/ADR-016-incident-pipeline.md) |
+| Approved remediation: operator requests an allowlisted, hash-pinned SSM runbook; admin approves; it runs exactly once | ✅ | ✅ | [Phase 6 checkpoint](docs/phases/phase-6-checkpoint.md) |
+| Verified recovery: RESOLVED only after 3 healthy probes after the fix; SSM "Success" with the service still down → ESCALATED | ✅ | ✅ | Live false-success test, Phase 6 |
+| Simulation Lab, Scenario A (Nginx outage): preflight checks, one-run lock, cooldown, time limit, watchdog, reset | ✅ | ✅ | [Phase 7 checkpoint](docs/phases/phase-7-checkpoint.md) |
+| Scenario B (Lambda regression rollback) and C (security group exposure) | — | ✅ | Demo only, labelled planned in Live |
+| Analytics: MTTA/MTTR with medians and denominators, runbook and recovery outcomes, availability with coverage (unknown when there is no data) | ✅ | ✅ | [Phase 8 checkpoint](docs/phases/phase-8-checkpoint.md): every Live number reconciled with its source |
+| Sanitized JSON/CSV incident and analytics reports | ✅ | ✅ | No account IDs or ARNs (tested) |
+| Structured logs, CloudWatch operations dashboard, investigation links | ✅ | — | [ADR-019](docs/adr/ADR-019-analytics-and-observability.md) |
+| Easy and Advanced views, dark and light themes, WCAG 2.2 AA | ✅ | ✅ | axe on every Demo and Live screen |
+| Printable HTML report, tracing, multi-account or multi-region | ❌ | ❌ | Not built |
 
-| Capability | What it will do |
-|---|---|
-| **Infrastructure monitoring** | Health and status of registered EC2, Lambda, API Gateway, DynamoDB and S3 resources |
-| **Incident detection** | CloudWatch alarms → EventBridge → idempotent incident creation, with deduplication and out-of-order event handling |
-| **Incident management** | Severity, ownership, lifecycle states, evidence and a full audit timeline |
-| **Controlled remediation** | Allowlisted, versioned runbooks (e.g. restart Nginx via Systems Manager) that require admin approval and are **only marked resolved after independent health verification** |
-| **Simulation Lab** | Trigger safe, tagged, disposable failures from the UI and watch the whole lifecycle play out |
-| **Analytics** | MTTA, MTTR, availability, severity distribution and runbook success, with honest denominators |
-| **Demo Mode & Live AWS Mode** | A public, clearly labeled synthetic demo, separate from the authenticated live AWS mode |
-
-### The incident lifecycle
-
-```text
-Failure → Detection → Incident → Investigation → Approval → Remediation → Recovery (verified)
-```
-
-The core demonstration, and the first one that will be built end to end, is a **real Nginx outage on EC2, detected by CloudWatch, recovered through the web UI via an approved SSM runbook, and verified by repeated health checks.** Lambda rollback and security-group exposure scenarios are planned as stretch goals.
-
----
-
-## Planned architecture
+## Architecture
 
 ```mermaid
-flowchart TD
-  B[Browser - React dashboard] -->|Public demo| D[Demo engine - synthetic data]
-  B -->|Sign-in| C[Amazon Cognito]
-  B -->|JWT / HTTPS| A[API Gateway HTTP API]
-  A --> F[Lambda handlers - Python]
-  F --> DB[(DynamoDB - incidents, resources, audit)]
-  F --> Q[Approved action coordinator]
-  Q --> S[Systems Manager]
-  S --> E[Disposable EC2 + Nginx lab]
-  Q --> V[Health verification]
-  V --> DB
-  HC[Scheduled health check] --> CW[CloudWatch alarms]
-  CW --> EB[EventBridge]
-  EB --> P[Incident ingest Lambda]
-  P --> DB
-  P --> SNS[SNS notifications]
+flowchart LR
+  subgraph Browser
+    UI[React dashboard<br/>GitHub Pages, strict CSP]
+  end
+  UI -->|Demo Mode| DE[In-browser demo engine<br/>synthetic, no network]
+  UI -->|PKCE sign-in| COG[Cognito]
+  UI -->|JWT, HTTPS| APIGW[API Gateway HTTP API]
+
+  subgraph CP[Control plane · ap-southeast-1]
+    APIGW --> API[API Lambda<br/>roles from Cognito groups]
+    API --> DDB[(DynamoDB<br/>incidents · audit · remediations · lab runs)]
+    API -->|async| COORD[Coordinator Lambda]
+    API -->|sync| LABC[Lab controller Lambda]
+    ING[Ingest Lambda] --> DDB
+    ING --> SNS[SNS email]
+    REC[Reconciler Lambda<br/>every 2 min · watchdog] --> DDB
+  end
+
+  subgraph LAB[Disposable lab · tagged opsentra:lab=true]
+    EC2[EC2 + Nginx]
+    PROBE[Probe Lambda] -->|HTTP| EC2
+    PROBE --> CW[CloudWatch metric + alarm]
+  end
+
+  CW --> EB[EventBridge] --> ING
+  COORD -->|RestartNginx only| SSM[Systems Manager] --> EC2
+  LABC -->|StopNginx / RestartNginx| SSM
+  SSM -->|status events| COORD
 ```
 
-| Plane | Contents | Lifetime |
+| Plane | What it holds | Lifetime |
 |---|---|---|
-| Frontend Demo | Static GitHub Pages build with synthetic data | Persistent, no AWS credentials |
-| Control plane | Cognito, API Gateway, Lambda, DynamoDB, EventBridge, SNS | Long-lived, least privilege |
-| Lab plane | Disposable EC2/Nginx, Lambda regression, test security group | Created only for tests, then destroyed |
+| Frontend | Static build on GitHub Pages: Demo Mode, and Live Mode through the API | Persistent; no AWS credentials |
+| Control plane | Cognito, API Gateway, 5 Lambdas, DynamoDB, EventBridge, SNS, CloudWatch dashboard | Deployed; serverless, no always-on compute |
+| Lab plane | EC2/Nginx, its probe and alarm, two fixed SSM documents | Created for a demo, destroyed after (teardown verified by script) |
 | Terraform state | Versioned, encrypted S3 bucket with native locking | Persistent, never public |
 
-### Tech stack
+More: [architecture overview](docs/architecture/overview.md) · [IAM model](docs/security/iam-model.md) · [ADRs](docs/adr/).
 
-| Area | Technologies |
+## Security, in short
+
+- **No arbitrary actions.** Requests carry only a runbook or scenario ID. Targets and documents come from a Terraform-written registry, pinned by SHA-256 hash, and only on instances tagged `opsentra:lab=true`. This is enforced in IAM and checked again in code.
+- **Backend-enforced roles.** Roles come from Cognito groups, never from a request. Every route except `/v1/health` needs a JWT. Writes need an `Idempotency-Key` and a version check.
+- **Least privilege, tested.** Terraform tests pin every IAM policy. IAM Access Analyzer reports no findings. The coordinator cannot run the fault-injection document.
+- **Phase 9 audit:** no critical or high findings. The checks cover secrets across the full git history, dependencies, TLS/CORS, auth on every route, input fuzzing and a CSP. See the [test report](docs/phases/phase-9-test-report.md) and the [threat model](docs/security/threat-model.md).
+
+## Costs
+
+The control plane is serverless and mostly within free tiers. The lab costs about **US$0.01–0.02 per hour** while it exists, and it exists only during tests. Observed usage for 1–13 November 2026, the whole build and test period: **≈ US$0.035**. See the [cost log](docs/costs/cost-log.md).
+
+## See it
+
+| | |
 |---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS, shadcn/ui |
-| Backend | Python, AWS Lambda, API Gateway HTTP API (REST, `/v1`) |
-| Data | Amazon DynamoDB (on-demand) |
-| Detection & events | Amazon CloudWatch, Amazon EventBridge, AWS CloudTrail, Amazon SNS |
-| Remediation | AWS Systems Manager (Run Command / Automation) |
-| Identity | Amazon Cognito, IAM (Viewer / Operator / Administrator roles) |
-| Infrastructure as Code | Terraform (S3 backend with native lockfile) |
-| CI/CD | GitHub Actions with short-lived AWS OIDC credentials, GitHub Pages |
-| Testing | Vitest, Testing Library, pytest, Playwright, Terraform validate/fmt + security scanning |
+| ![Live Simulation Lab with all preflight checks passing](docs/screenshots/live/simulation-lab-preflight.png) | ![Live analytics with denominators and data-quality notes](docs/screenshots/live/analytics.png) |
+| **Live:** Simulation Lab preflight | **Live:** analytics, reconciled with source data |
+| ![Demo overview](docs/screenshots/demo/overview-desktop-dark.png) | ![Demo architecture page](docs/screenshots/demo/architecture-desktop-dark.png) |
+| **Demo:** overview | **Demo:** architecture as built |
 
----
+🎬 **[Demo walkthrough video](docs/media/opsentra-demo-walkthrough.webm)** (Demo Mode, synthetic data): break the web server, take ownership, approve the fix, and watch it verified.
 
-## Design principles
+## Run it
 
-- **UI-first, but engineering-real:** the browser drives the demo, and every live claim is backed by real AWS evidence.
-- **Demo and Live are never mixed:** synthetic data is always labeled `DEMO — SYNTHETIC DATA`, and Live Mode fails closed instead of quietly falling back to mock data.
-- **Safe by construction:** no arbitrary commands, no generic "terraform apply" button, no SSH. Only allowlisted runbooks run against tagged lab resources.
-- **Backend-enforced authorization:** Cognito JWTs plus server-side role checks; UI roles alone are never trusted.
-- **Terraform-first and disposable:** labs are created for a demo and destroyed afterwards.
-- **Cost-aware:** no NAT gateways, load balancers, RDS or always-on containers in the MVP. The control plane targets a few dollars a month at low traffic (a planning target, not a guarantee).
-- **One complete incident before breadth:** the Nginx failure-to-verified-recovery flow comes first.
+**Demo locally** (no AWS):
 
----
+```bash
+cd apps/dashboard && npm ci && npm run dev   # http://localhost:5173
+```
 
-## Roadmap
+**Live, on your own AWS account.** This needs Terraform ≥ 1.10 (S3 native state locking), the AWS CLI and Python 3.12:
 
-Work progresses through **ten milestone-based phases**. Each one has to pass its gate before the next begins.
+1. Bootstrap the state bucket: [`infrastructure/bootstrap-state/`](infrastructure/bootstrap-state/).
+2. Deploy the control plane: [`infrastructure/environments/control-plane-dev/`](infrastructure/environments/control-plane-dev/), using `terraform.tfvars.example` as the template.
+3. Create Cognito users in the `viewer`, `operator` or `admin` group.
+4. Put the four public `VITE_*` values in `apps/dashboard/.env.local`.
+5. Deploy the lab only when you need it, and destroy it after. See [runbooks §1–2](docs/operations/runbooks.md).
 
-| # | Phase | Status |
-|---|---|---|
-| 1 | Branding approval, foundation, UI/UX | ✅ Complete |
-| 2 | Fully interactive Demo Mode | ✅ Complete |
-| 3 | AWS infrastructure foundation (Terraform, Cognito, API, DynamoDB) | ✅ Complete |
-| 4 | Real AWS monitoring and inventory | ✅ Complete |
-| 5 | Incident detection, management and audit | ✅ Complete |
-| 6 | Controlled automated remediation | ✅ Complete |
-| 7 | Live Simulation Lab and guardrails | ✅ Complete |
-| 8 | Analytics, reporting and observability | ✅ Complete |
-| 9 | Security hardening, testing and optimization | ✅ Complete |
-| 10 | Public release, docs and portfolio case study | 🟡 **In progress** |
-
-**Done so far**
-
-- [x] Project master blueprint: scope, architecture, security model, test plan, cost strategy
-- [x] Brand identity: logo system, favicons, colour and type guidelines ([`brand/`](brand/))
-- [x] React + TypeScript dashboard foundation and page skeletons ([`apps/dashboard/`](apps/dashboard/))
-- [x] Interactive Demo Mode: simulated failure → detection → approval → verified recovery, with audit and analytics
-- [x] Easy and Advanced views: plain-language Easy view by default, full Advanced view one click away
-- [x] AWS control plane (Phase 3): Terraform state, Cognito, HTTP API with JWT roles, DynamoDB, CI checks; deployed
-- [x] Live monitoring (Phase 4): disposable Nginx lab, probe, alarm, events, Live dashboard sign-in
-- [x] Live incidents (Phase 5): validated, deduplicated ingest, email alert, operator actions, audit trail, verified self-heal
-- [x] Approved remediation (Phase 6): request, admin approval, one hash-pinned SSM run, verified recovery or escalation
-- [x] Live Simulation Lab (Phase 7): admin-started Nginx outage with preflight, lock, cooldown, watchdog and teardown check
-- [x] Analytics, reporting and observability (Phase 8): reconciled Live metrics, sanitized exports, structured logs, dashboard
-- [x] Security hardening, testing and optimization (Phase 9): audit, CSP, least-privilege fixes, threat model, runbooks, live accessibility checks
-- [ ] Public release, docs and portfolio case study (Phase 10)
-
----
+Full steps: [Terraform operations](docs/operations/terraform.md). Live demo script and checklist: [interview demo](docs/interview-demo/README.md).
 
 ## Repository
 
 ```text
-opsentra/
-├── README.md
-├── CLAUDE.md                      # guardrails for building with Claude Code
-├── OPSENTRA_MASTER_BLUEPRINT.md   # source of truth: scope, architecture, phases
-├── .github/                       # frontend CI, PR template
-├── apps/dashboard/                # React + Vite + TypeScript dashboard
-├── infrastructure/                # Terraform: state bootstrap, control plane, modules
-├── services/api/                  # Python 3.12 Lambda API (/v1 reads, incident actions, audit)
-├── services/health-check/         # independent HTTP probe for the lab
-├── services/incidents/            # incident ingest and reconciler Lambdas
-├── scripts/bootstrap/             # one-off helper scripts
-├── brand/                         # logo system, favicons, brand guidelines
-└── docs/                          # ADRs, architecture overview, phase checkpoints
+apps/dashboard/        React + Vite + TypeScript dashboard (Demo engine, Live adapter)
+services/api/          API Lambda (/v1), analytics
+services/incidents/    ingest, reconciler, remediation coordinator, lab controller, structured logs
+services/health-check/ the lab's independent HTTP probe
+infrastructure/        Terraform: state bootstrap, control plane, disposable lab, modules (+ mocked tests)
+scripts/gate/          live gate drivers (UI and API), teardown verification, analytics reconciliation
+scripts/security/      secret scan, API security probe, latency check
+scripts/release/       bundle and site checks, demo recording
+docs/                  ADRs, phase checkpoints, threat model, runbooks, costs, interview demo
+OPSENTRA_MASTER_BLUEPRINT.md   source of truth: scope, design, phases
 ```
 
-Failure labs (`labs/`) and the remaining services will be added in the phases where they are built. See [Terraform operations](docs/operations/terraform.md) for deploying. See §8 of the [blueprint](OPSENTRA_MASTER_BLUEPRINT.md) for the planned layout.
+## How it was built
 
-## Brand
-
-<img src="brand/opsentra-icon.svg" alt="Opsentra symbol" width="56" align="left">
-
-The **Continuity Shift** symbol is one ring split into two halves that shift apart but never separate: an incident is a shift in a system that stays whole. The full kit and usage rules are in [`brand/BRAND_GUIDELINES.md`](brand/BRAND_GUIDELINES.md).
-
-<br clear="left">
-
-### Run the dashboard locally
-
-```bash
-cd apps/dashboard
-npm ci
-npm run dev        # http://localhost:5173 (Demo Mode, synthetic data)
-# Opens in the Easy view: Practice lab → Break the web server, then follow the one button.
-# Switch to Advanced (top bar) for the full engineering view.
-npm test           # unit and component tests
-```
-
-See [`apps/dashboard/README.md`](apps/dashboard/README.md) for all scripts.
-
-## Documentation
-
-- [Master blueprint](OPSENTRA_MASTER_BLUEPRINT.md): architecture, API contract, data model, threat model, test strategy, cost plan and interview storyboard
-- [Architecture overview](docs/architecture/overview.md): what is built now versus planned
-- [Architecture decision records](docs/adr/)
-- [Phase 1 checkpoint](docs/phases/phase-1-checkpoint.md), [design review](docs/phases/phase-1-design-review.md) and [Phase 2 checkpoint](docs/phases/phase-2-checkpoint.md)
-- [Phase 6 checkpoint](docs/phases/phase-6-checkpoint.md) and [Phase 7 checkpoint](docs/phases/phase-7-checkpoint.md) and [Phase 8 checkpoint](docs/phases/phase-8-checkpoint.md): live gate evidence
-- [Phase 9 test report](docs/phases/phase-9-test-report.md), [threat model](docs/security/threat-model.md) and [runbooks](docs/operations/runbooks.md)
-- [Brand guidelines](brand/BRAND_GUIDELINES.md): logo usage, colour, typography and dashboard branding
+Ten gated phases, each with a written gate, tests and evidence, and an owner review before the next phase began. See the [roadmap and changelog](CHANGELOG.md), the [phase checkpoints](docs/phases/) and the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md). Bugs found in live testing are written down with their fixes, for example the invalid DynamoDB update that a mock accepted, and a CORS preflight regression caught by the accessibility gate.
 
 ## Author
 
-Opsentra is created and programmed solely by **Jervil Angelo De Leon**: concept, architecture, brand, infrastructure and code.
+Created and programmed solely by **Jervil Angelo De Leon**: concept, architecture, brand, infrastructure and code.
 
 - Website: [jervilangelo.online](https://jervilangelo.online)
 - GitHub: [github.com/jervilangelo](https://github.com/jervilangelo)
@@ -220,6 +173,5 @@ A license has not been chosen yet. Until one is added, all rights are reserved.
 ---
 
 <div align="center">
-<sub>Created and developed by <a href="https://jervilangelo.online">Jervil Angelo De Leon</a>.<br>
-Opsentra is a portfolio project under active development. HarborPoint Solutions is fictional. No real customer data is used.</sub>
+<sub>HarborPoint Solutions, the demo's organisation, is fictional. No real customer data is used. The Live lab is disposable test infrastructure.</sub>
 </div>
