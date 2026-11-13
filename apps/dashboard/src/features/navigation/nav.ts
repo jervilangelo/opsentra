@@ -26,7 +26,13 @@ export interface NavItem {
  * Single source for the sidebar, the router and tests.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { path: '/', label: 'Overview', icon: LayoutDashboard, heading: 'Overview', easyLabel: 'Home' },
+  {
+    path: '/overview',
+    label: 'Overview',
+    icon: LayoutDashboard,
+    heading: 'Overview',
+    easyLabel: 'Home',
+  },
   { path: '/infrastructure', label: 'Infrastructure', icon: Server, heading: 'Infrastructure' },
   {
     path: '/incidents',

@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 const PAGES = [
-  { path: '/', heading: 'Overview', shot: 'overview' },
+  { path: '/overview', heading: 'Overview', shot: 'overview' },
   { path: '/infrastructure', heading: 'Infrastructure', shot: 'infrastructure' },
   { path: '/incidents', heading: 'Incidents', shot: 'incidents' },
   { path: '/incidents/INC-DEMO-0001', heading: 'Incident Detail', shot: 'incident-detail' },
@@ -78,14 +78,14 @@ test('light theme passes contrast checks on the overview and incidents', async (
       JSON.stringify({ state: { theme: 'light', view: 'advanced' }, version: 0 }),
     ),
   );
-  for (const path of ['/', '/incidents', '/audit']) {
+  for (const path of ['/overview', '/incidents', '/audit']) {
     await page.goto(path);
     await expect(page.locator('html')).not.toHaveClass(/dark/);
     await expect(page.getByRole('status', { name: /loading/i })).toHaveCount(0);
     const axe = await new AxeBuilder({ page }).withTags(['wcag2aa']).analyze();
     expect(axe.violations.map((v) => `${v.id} on ${path}`)).toEqual([]);
     if (process.env.SCREENSHOTS) {
-      const name = path === '/' ? 'overview' : path.slice(1);
+      const name = path.slice(1);
       await page.screenshot({
         path: `${SHOT_DIR}/${name}-${info.project.name}-light.png`,
         fullPage: true,
@@ -95,7 +95,7 @@ test('light theme passes contrast checks on the overview and incidents', async (
 });
 
 test('keyboard: skip link and visible focus on navigation', async ({ page }, info) => {
-  await page.goto('/');
+  await page.goto('/overview');
   await page.keyboard.press('Tab');
   const skip = page.getByRole('link', { name: 'Skip to content' });
   await expect(skip).toBeFocused();
@@ -120,7 +120,7 @@ test('live mode fails closed and shows no synthetic data', async ({ page }) => {
 
 test('mobile navigation drawer opens and navigates', async ({ page }, info) => {
   test.skip(info.project.name !== 'mobile', 'mobile only');
-  await page.goto('/');
+  await page.goto('/overview');
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('dialog').getByRole('link', { name: 'Incidents' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Incidents' })).toBeVisible();

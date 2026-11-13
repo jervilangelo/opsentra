@@ -20,7 +20,7 @@ export function AuthCallbackPage() {
     completeSignIn(window.location.search)
       .then(() => {
         setMode('live');
-        void navigate('/', { replace: true });
+        void navigate('/overview', { replace: true });
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Sign-in failed.'));
   }, [navigate, setMode]);

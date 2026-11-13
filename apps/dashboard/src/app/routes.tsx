@@ -12,16 +12,29 @@ import { InfrastructurePage } from '@/features/infrastructure/InfrastructurePage
 import { OverviewPage } from '@/features/overview/OverviewPage';
 import { RecoveryCenterPage } from '@/features/recovery/RecoveryCenterPage';
 import { SimulationLabPage } from '@/features/simulation-lab/SimulationLabPage';
+import { AboutPage } from '@/features/site/AboutPage';
+import { LandingPage } from '@/features/site/LandingPage';
+import { SiteLayout } from '@/features/site/SiteLayout';
 
 import { AppShell } from './AppShell';
 
 export const routes: RouteObject[] = [
+  // Public site (ADR-022): landing page and about, outside the dashboard shell.
   {
     path: '/',
+    element: <SiteLayout />,
+    errorElement: <RouteErrorPage />,
+    children: [
+      { index: true, element: <LandingPage /> },
+      { path: 'about', element: <AboutPage /> },
+    ],
+  },
+  // The dashboard. Overview moved from / to /overview (ADR-022).
+  {
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <OverviewPage /> },
+      { path: 'overview', element: <OverviewPage /> },
       { path: 'infrastructure', element: <InfrastructurePage /> },
       { path: 'incidents', element: <IncidentsPage /> },
       { path: 'incidents/:incidentId', element: <IncidentDetailPage /> },

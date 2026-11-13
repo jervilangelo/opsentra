@@ -52,7 +52,7 @@ test.beforeEach(async ({ page }) => {
 
 test('Scenario A: detect, investigate, approve and verify recovery', async ({ page }, info) => {
   const p = info.project.name;
-  await page.goto('/');
+  await page.goto('/overview');
   await expect(
     page.getByText('Guided demo: Detect → Investigate → Approve → Recover'),
   ).toBeVisible();

@@ -55,7 +55,7 @@ export function SignInPage() {
             <p className="text-muted-foreground">No account needed for the public demo.</p>
             <ModeBadge mode="demo" />
             <Button asChild variant="outline" className="w-full">
-              <Link to="/" className="no-underline">
+              <Link to="/overview" className="no-underline">
                 Continue to Demo Mode
               </Link>
             </Button>

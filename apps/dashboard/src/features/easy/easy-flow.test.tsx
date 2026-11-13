@@ -33,7 +33,7 @@ describe('Easy view', () => {
   });
 
   it('shows four plain destinations in the nav', async () => {
-    renderRoute('/');
+    renderRoute('/overview');
     const nav = (await screen.findAllByRole('navigation', { name: 'Main' }))[0]!;
     const links = within(nav)
       .getAllByRole('link')
@@ -42,14 +42,14 @@ describe('Easy view', () => {
   });
 
   it('answers the overview question in one sentence with one button', async () => {
-    renderRoute('/');
+    renderRoute('/overview');
     expect(await screen.findByText('5 of 6 systems are working.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Practice a failure' })).toBeInTheDocument();
   });
 
   it('toggles to Advanced and back, and remembers the choice', async () => {
     const user = userEvent.setup();
-    renderRoute('/');
+    renderRoute('/overview');
     await user.click(screen.getAllByRole('button', { name: 'Advanced' })[0]!);
     expect(await screen.findByText('Monitored resources')).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('opsentra:preferences') ?? '{}').state.view).toBe(
@@ -66,7 +66,7 @@ describe('Easy view', () => {
     await confirm(/Break the web server/);
 
     advanceUntil(() => Boolean(incidentOfRun()));
-    await act(() => router.navigate('/'));
+    await act(() => router.navigate('/overview'));
     expect(await screen.findByText('1 problem needs you.')).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Open the problem' }));
 

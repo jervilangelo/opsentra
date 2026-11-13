@@ -31,7 +31,7 @@ const pause = (p, ms = 1400) => p.waitForTimeout(ms);
     };
     const skip = p.getByRole('button', { name: 'Skip ahead' }).first();
 
-    await p.goto(site);
+    await p.goto(site + 'overview');
     await p.getByText('DEMO — SYNTHETIC DATA').first().waitFor();
     await pause(p, 2500);
     await p.getByRole('link', { name: 'Practice a failure' }).click();

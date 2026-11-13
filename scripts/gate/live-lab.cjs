@@ -23,7 +23,7 @@ const t = () => new Date().toISOString().slice(11, 19);
   const p = await ctx.newPage();
   const shot = (name) => p.screenshot({ path: `${out}/${name}.png`, fullPage: true });
   try {
-    await p.goto(UI);
+    await p.goto(UI + 'overview');
     await p.getByRole('button', { name: 'Live AWS' }).click();
     await p.getByRole('button', { name: 'Sign in' }).click();
     await p.waitForURL(/amazoncognito\.com/, { timeout: 20000 });

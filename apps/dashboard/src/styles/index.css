@@ -94,12 +94,80 @@
   animation: ops-shift 1.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
+/* Public site (landing, about). Entrance motion only; everything ends visible,
+   so the global reduced-motion rule below simply shows the final state. */
+@utility animate-ops-shift-intro {
+  /* The brand shift, three times on arrival, then the symbol rests aligned. */
+  animation: ops-shift 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.6s 3 both;
+}
+
+@keyframes ops-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility animate-fade-up {
+  animation: ops-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ops-glow-drift {
+  0%,
+  100% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(-46%, 18px) scale(1.08);
+    opacity: 0.8;
+  }
+}
+
+@utility animate-glow-drift {
+  animation: ops-glow-drift 14s ease-in-out infinite;
+}
+
+@keyframes ops-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility animate-slide-in {
+  animation: ops-slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ops-twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(-12deg);
+  }
+}
+
+@utility animate-twinkle {
+  animation: ops-twinkle 0.6s ease-in-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0s !important; /* staggered entrances show at once */
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }

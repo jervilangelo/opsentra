@@ -29,7 +29,7 @@ describe('routes', () => {
   });
 
   it('sidebar lists all eight top-level pages', () => {
-    renderRoute('/');
+    renderRoute('/overview');
     const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]!;
     for (const item of NAV_ITEMS) {
       expect(within(nav).getByRole('link', { name: item.label })).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe('routes', () => {
 
 describe('live mode fails closed in the UI', () => {
   it.each([
-    '/',
+    '/overview',
     '/infrastructure',
     '/incidents',
     '/incidents/INC-DEMO-0002',

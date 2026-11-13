@@ -20,7 +20,7 @@ export function SidebarNav({
         <NavLink
           key={path}
           to={path}
-          end={path === '/'}
+          end={path === '/overview'}
           onClick={onNavigate}
           title={collapsed ? label : undefined}
           className={({ isActive }) =>

@@ -41,7 +41,7 @@ test.beforeEach(async ({ page }) => {
 
 test('Easy view: practice outage from start to verified fix', async ({ page }, info) => {
   const p = info.project.name;
-  await page.goto('/');
+  await page.goto('/overview');
   await expect(page.getByText('5 of 6 systems are working.')).toBeVisible();
   await noSideScroll(page);
   await a11y(page);
@@ -79,7 +79,7 @@ test('Easy view: practice outage from start to verified fix', async ({ page }, i
 });
 
 test('Easy nav hides the advanced pages, and the toggle switches views', async ({ page }, info) => {
-  await page.goto('/');
+  await page.goto('/overview');
   if (info.project.name === 'mobile') {
     await page.getByRole('button', { name: 'Open navigation' }).click();
     const drawer = page.getByRole('dialog');

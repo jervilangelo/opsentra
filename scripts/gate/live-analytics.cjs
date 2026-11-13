@@ -31,7 +31,7 @@ const check = (name, ok, extra = '') => {
   };
   const clean = (text) => !/\b\d{12}\b/.test(text) && !/arn:aws/.test(text);
   try {
-    await p.goto('http://localhost:5173/');
+    await p.goto('http://localhost:5173/overview');
     await p.getByRole('button', { name: 'Live AWS' }).click();
     await p.getByRole('button', { name: 'Sign in' }).click();
     await p.waitForURL(/amazoncognito\.com/, { timeout: 20000 });

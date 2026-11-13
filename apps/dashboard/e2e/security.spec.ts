@@ -8,6 +8,8 @@ import { expect, test } from '@playwright/test';
 
 const PATHS = [
   '/',
+  '/about',
+  '/overview',
   '/infrastructure',
   '/incidents',
   '/incidents/INC-DEMO-0001',

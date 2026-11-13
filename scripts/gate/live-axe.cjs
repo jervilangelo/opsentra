@@ -22,7 +22,7 @@ const [out, incidentId, label = 'live'] = process.argv.slice(2);
     const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
     await ctx.addInitScript((t) => localStorage.setItem('opsentra:preferences', JSON.stringify({ state: { view: 'advanced', theme: t }, version: 0 })), theme);
     const p = await ctx.newPage();
-    await p.goto(UI);
+    await p.goto(UI + 'overview');
     await p.getByRole('button', { name: 'Live AWS' }).click();
     await p.getByRole('button', { name: 'Sign in' }).click();
     await p.waitForURL(/amazoncognito\.com/, { timeout: 20000 });
