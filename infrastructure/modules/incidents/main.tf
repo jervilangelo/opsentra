@@ -145,14 +145,17 @@ locals {
     },
   ]
 
-  # Runs only Opsentra lab documents, only on instances tagged opsentra:lab=true.
-  # The request, registry and document hash are checked again in code (ADR-017).
+  # Runs only the recovery runbook, only on instances tagged opsentra:lab=true.
+  # Phase 9 (finding F4): exactly RestartNginx, not the Opsentra-Lab-* prefix,
+  # so the coordinator and reconciler can never send the fault-injection
+  # document. The request, registry and document hash are checked again in
+  # code (ADR-017).
   runbook_statements = [
     {
-      Sid      = "RunLabDocumentsOnly"
+      Sid      = "RunRecoveryRunbookOnly"
       Effect   = "Allow"
       Action   = ["ssm:SendCommand"]
-      Resource = "arn:aws:ssm:${var.region}:${var.account_id}:document/${var.runbook_document_prefix}*"
+      Resource = "arn:aws:ssm:${var.region}:${var.account_id}:document/${var.runbook_document_prefix}RestartNginx"
     },
     {
       Sid       = "OnLabInstancesOnly"

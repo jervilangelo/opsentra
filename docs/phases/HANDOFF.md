@@ -6,15 +6,20 @@
 
 | | |
 |---|---|
-| **Phase** | **9: Security hardening, testing and optimization. Next; not started.** |
+| **Phase** | **9: Security hardening, testing and optimization. In progress:** audit done, local fixes done (CSP, `$default` route, runbook IAM narrowed), docs written. **Not deployed.** See `docs/phases/phase-9-test-report.md` → Pending. |
 | **Phases complete** | 1–5 (approved 2026-11-12); 6–8 (approved 2026-11-13). |
-| **Branch** | `main` (Phase 8 merged from `feat/analytics`). Start Phase 9 on a new feature branch. |
+| **Branch** | `feat/hardening` (pushed). `main` has Phases 1–8. |
 | **AWS now** | **Control plane deployed** with Phases 6–8 (analytics route, `opsentra-dev-operations` dashboard, structured logs). **Lab destroyed.** |
 | **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.10.1) and `CLAUDE.md`. Latest designs: ADR-017, ADR-018, ADR-019. Evidence: `docs/phases/phase-6-checkpoint.md` to `phase-8-checkpoint.md`. |
 
 ## Next
 
-1. Read blueprint §7 Phase 9 and plan it with the owner.
+1. Phase 9 needs owner approval for:
+   - the control-plane apply of F1 and F4 (plan: 1 add, 2 change), then `scripts/security/probe_api.py`;
+   - a lab cycle: deploy, axe on the Live screens, `lab_attacks.py`, destroy, `verify_teardown.py`;
+   - a cost baseline: Cost Explorer (us-east-1, about $0.01 per call) or a manual Billing check.
+
+   Also confirm the owner's TOTP enrolment (F2).
 2. Still open:
    - the SNS email confirmation (owner);
    - the Phase 3–8 cost check once billing data arrives;

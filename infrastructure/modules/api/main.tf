@@ -125,7 +125,11 @@ locals {
     "GET /v1/remediations/{requestId}"                    = { protected = true }
     "GET /v1/runbooks"                                    = { protected = true }
 
-    "GET /v1/analytics"                = { protected = true }
+    "GET /v1/analytics" = { protected = true }
+    # Phase 9 (finding F1): any other path reaches the Lambda (after the JWT
+    # check), which answers with the standard {error} 404 envelope instead of
+    # API Gateway's default body.
+    "$default"                         = { protected = true }
     "GET /v1/labs"                     = { protected = true }
     "POST /v1/labs/{scenarioId}/start" = { protected = true }
     "POST /v1/labs/{scenarioId}/reset" = { protected = true }

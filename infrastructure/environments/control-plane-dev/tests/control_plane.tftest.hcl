@@ -65,8 +65,12 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
-    condition     = length(module.api.route_authorization) == 21 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
-    error_message = "Phase 8 exposes twenty-one routes and every write route needs a JWT."
+    condition     = length(module.api.route_authorization) == 22 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
+    error_message = "Phase 9 exposes twenty-one routes plus $default, and every write route needs a JWT."
+  }
+  assert {
+    condition     = module.api.route_authorization["$default"] == "JWT"
+    error_message = "The catch-all route must require a JWT (unknown paths are not public)."
   }
   assert {
     condition     = module.api.route_authorization["GET /v1/analytics"] == "JWT"
@@ -326,12 +330,20 @@ run "remediation_guardrails" {
     condition = alltrue(flatten([
       for p in [module.incidents.coordinator_policy, module.incidents.reconciler_policy] : [
         for st in p.Statement : (
-          st.Resource == "arn:aws:ssm:ap-southeast-1:111122223333:document/Opsentra-Lab-*" ||
+          st.Resource == "arn:aws:ssm:ap-southeast-1:111122223333:document/Opsentra-Lab-RestartNginx" ||
           (st.Resource == "arn:aws:ec2:ap-southeast-1:111122223333:instance/*" && st.Condition.StringEquals["ssm:resourceTag/opsentra:lab"] == "true")
         ) if contains(st.Action, "ssm:SendCommand")
       ]
     ]))
-    error_message = "SendCommand only for Opsentra-Lab-* documents on instances tagged opsentra:lab=true."
+    error_message = "Coordinator and reconciler: SendCommand only for the RestartNginx runbook on instances tagged opsentra:lab=true (Phase 9, F4)."
+  }
+  assert {
+    condition = !anytrue(flatten([
+      for p in [module.incidents.coordinator_policy, module.incidents.reconciler_policy] : [
+        for st in p.Statement : strcontains(jsonencode(st.Resource), "StopNginx") || strcontains(jsonencode(st.Resource), "Opsentra-Lab-*")
+      ]
+    ]))
+    error_message = "Only the lab controller may send the fault-injection document."
   }
   assert {
     condition = !anytrue(flatten([
