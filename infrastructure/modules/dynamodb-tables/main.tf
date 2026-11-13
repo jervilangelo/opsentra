@@ -49,6 +49,14 @@ locals {
       gsi        = []
       ttl        = null
     }
+    # Phase 7 (ADR-018): Simulation Lab runs plus one LOCK item (one active run, cooldown).
+    lab-runs = {
+      hash_key   = "runId"
+      range_key  = null
+      attributes = { runId = "S" }
+      gsi        = []
+      ttl        = null
+    }
   }
 }
 

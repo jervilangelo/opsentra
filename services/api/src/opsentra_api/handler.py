@@ -13,6 +13,7 @@ token; the read routes need at least the viewer role.
   GET /v1/remediations[?incidentId=], /v1/remediations/{id}      Viewer+
   GET /v1/runbooks                                                Viewer+
   GET /v1/audit                                                   Admin
+  GET /v1/labs, POST /v1/labs/{id}/start|reset                    Admin (ADR-018)
 
 Responses are `{data, meta}` on success and `{error: {code, message, requestId}}`
 on failure. Timestamps are ISO-8601 UTC. Errors never include stack traces.
@@ -394,9 +395,65 @@ def list_runbooks(event: Mapping[str, Any], request_id: str, **_: str) -> Respon
 def list_audit(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
     _, role = require_identity(event)
     require_role(role, "ADMIN")  # full audit is admin-only (§4.2, §5.2)
-    items = [i for i in get_store().scan(store.tables()["audit"]) if str(i.get("PK", "")).startswith("INCIDENT#")]
+    items = [
+        i for i in get_store().scan(store.tables()["audit"]) if str(i.get("PK", "")).startswith(("INCIDENT#", "LAB#"))
+    ]
     rows = sorted((store.audit_dto(i) for i in items), key=lambda a: a["id"], reverse=True)
     return ok(rows[:200], request_id)
+
+
+def _invoke_lab(payload: dict[str, Any]) -> dict[str, Any]:
+    """Synchronous call to the lab-controller Lambda, which alone holds the lab's
+    SSM permissions (ADR-018). Fails closed: no controller means no lab."""
+    name = os.environ.get("LAB_CONTROLLER_FUNCTION", "")
+    if not name:
+        return {"status": 503, "error": {"code": "LAB_UNAVAILABLE", "message": "The Simulation Lab is not configured."}}
+    import boto3
+
+    res = boto3.client("lambda").invoke(
+        FunctionName=name, InvocationType="RequestResponse", Payload=json.dumps(payload).encode()
+    )
+    if res.get("FunctionError"):
+        raise RuntimeError("lab controller failed")
+    out = json.loads(res["Payload"].read())
+    if not isinstance(out, dict) or not isinstance(out.get("status"), int):
+        raise RuntimeError("lab controller returned an unexpected shape")
+    return out
+
+
+def _lab_reply(out: Mapping[str, Any], request_id: str) -> Response:
+    if out["status"] == 200:
+        return ok(out.get("data"), request_id)
+    err = out.get("error") or {}
+    return error(int(out["status"]), str(err.get("code", "LAB_ERROR")), str(err.get("message", "")), request_id)
+
+
+def list_labs(event: Mapping[str, Any], request_id: str, **_: str) -> Response:
+    actor, role, _key = _caller(event)
+    require_role(role, "ADMIN")  # lab readiness is admin-only (§4.2, §5.2)
+    return _lab_reply(
+        _invoke_lab({"source": "opsentra-api", "command": "list", "role": role, "actor": actor}), request_id
+    )
+
+
+def _lab_action(command: str) -> Callable[..., Response]:
+    def action(event: Mapping[str, Any], request_id: str, scenario_id: str = "", **_: str) -> Response:
+        actor, role, key = _caller(event)  # role and actor from verified claims only
+        body = _body(event)
+        payload: dict[str, Any] = {
+            "source": "opsentra-api",
+            "command": command,
+            "scenarioId": scenario_id,  # a catalog ID; the target comes from the registry
+            "role": role,
+            "actor": actor,
+            "idempotencyKey": key,
+        }
+        if command == "start":
+            payload["acknowledgeImpact"] = body.get("acknowledgeImpact") is True
+        # Admin checks and denial audits happen in the controller, next to the data.
+        return _lab_reply(_invoke_lab(payload), request_id)
+
+    return action
 
 
 _ID = r"([A-Za-z0-9._:-]{1,128})"
@@ -419,6 +476,9 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[..., Response], tuple[str, ...
     ("POST", re.compile(rf"^/v1/remediations/{_ID}/decision$"), decide_remediation, ("remediation_id",)),
     ("GET", re.compile(r"^/v1/runbooks$"), list_runbooks, ()),
     ("GET", re.compile(r"^/v1/audit$"), list_audit, ()),
+    ("GET", re.compile(r"^/v1/labs$"), list_labs, ()),
+    ("POST", re.compile(rf"^/v1/labs/{_ID}/start$"), _lab_action("start"), ("scenario_id",)),
+    ("POST", re.compile(rf"^/v1/labs/{_ID}/reset$"), _lab_action("reset"), ("scenario_id",)),
 ]
 
 

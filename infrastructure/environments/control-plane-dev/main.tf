@@ -55,6 +55,10 @@ module "api" {
     name = module.incidents.coordinator_function_name
     arn  = module.incidents.coordinator_function_arn
   }
+  lab_controller_function = {
+    name = module.incidents.lab_controller_function_name
+    arn  = module.incidents.lab_controller_function_arn
+  }
 }
 
 module "incidents" {
@@ -71,6 +75,7 @@ module "incidents" {
     correlations = { name = module.tables.table_names["active-correlations"], arn = module.tables.table_arns["active-correlations"] }
     resources    = { name = module.tables.table_names["resources"], arn = module.tables.table_arns["resources"] }
     remediations = { name = module.tables.table_names["remediations"], arn = module.tables.table_arns["remediations"] }
+    lab_runs     = { name = module.tables.table_names["lab-runs"], arn = module.tables.table_arns["lab-runs"] }
   }
 }
 

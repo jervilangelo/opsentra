@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.8.1 (Phases 1–5 complete; Phase 6 in progress)  
+> **Version:** 1.9.0 (Phases 1–5 complete; Phase 6 live gate pending; Phase 7 built, live gate pending)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phases 1–4 complete (gates passed 2026-11-12). The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests. Phase 5 in progress.  
+> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phase 6 (approved remediation) and Phase 7 (Live Simulation Lab) are built and tested locally; their live gate runs are pending. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -48,6 +48,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
 | ADR-015 | Phase 4 lab design and Live adapter | Agreed (2026-11-12) | Own VPC, HTTP-only probe target, self-terminating lab with required expiry, self-disabling probe, registry via Terraform, PKCE sign-in, `VITE_COGNITO_DOMAIN`. See `docs/adr/ADR-015-phase4-lab-and-live-adapter.md`. |
 | ADR-016 | Incident pipeline | Agreed (2026-11-12) | Validated ingest, `EVENT#` dedup, correlation transaction, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS once per incident, DLQ. See `docs/adr/ADR-016-incident-pipeline.md`. |
+| ADR-018 | Live Simulation Lab and guardrails | Agreed (2026-11-13) | Scenario A live, B/C planned; lab-controller Lambda (API keeps no SSM/EC2 rights); hash-pinned injection; preflight, confirmation, one-run lock, 5-min cooldown, 45-min run limit; watchdog in the reconciler; reset never resolves; read-only teardown verifier. See `docs/adr/ADR-018-live-simulation-lab.md`. |
 | ADR-017 | Approved remediation | Agreed (2026-11-12) | Hash-pinned runbooks, request/decision, self-approval flagged, coordinator lock (one command per approval), SSM status events, 3-healthy-probe verification, denied attempts audited. See `docs/adr/ADR-017-approved-remediation.md`. |
 
 ### 0.2 Explicit non-goals (MVP)
@@ -181,6 +182,8 @@ Success payloads are wrapped as `{data, meta}`; `meta.dataset` is `'synthetic'` 
 
 **v1.3.0 (ADR-012):** `ResourceSummary.type` adds `'SECURITY_GROUP'`; new DTOs `Runbook`, `AuditEvent`, `LabScenario`, `AnalyticsSummary`, `Role`, and typed mutation inputs (`MutationGuard {expectedVersion, idempotencyKey}` plus `reason`/`runbookId`/`decision` where applicable). Identity and role are never request fields. Full shapes in ADR-012 and `apps/dashboard/src/types/domain.ts`.
 
+**v1.9.0 (ADR-018):** `LabScenario` adds optional `preflight` (`LabPreflightCheck {id, label, ok, detail?}[]`), `activeRun` / `lastRun` (`LabRun {runId, scenarioId, resourceId, status: LabRunStatus, injection, startedAt, startedBy, expiresAt, incidentId?, endedAt?, endedBy?, endReason?}`), `cooldownUntil` and `labExpiresAt`. `LabRunStatus` is `ACTIVE | COMPLETED | RESET | EXPIRED | FAILED`. New input `ResetLabInput {idempotencyKey}`. `AuditEvent.targetType` `'LAB'` is now used.
+
 ---
 
 ## 3. Architecture and boundaries
@@ -291,7 +294,7 @@ sequenceDiagram
 - `action-coordinator`: locks a remediation request, validates token-derived identity and protected resource eligibility, dispatches approved action.
 - `action-reconciler`: polls or consumes execution status, verifies service health, marks succeeded/failed, prevents duplicate executions.
 - `inventory-sync`: only registered/allowlisted resources, with last-seen timestamps and role-aware projection.
-- `lab-controller`: admin-only, explicitly labeled destructive *test-only* endpoints and cleanup operations.
+- `lab-controller`: admin-only, explicitly labeled destructive *test-only* endpoints and cleanup operations. **v1.9.0 (ADR-018):** implemented as the `opsentra-dev-lab-controller` Lambda (code in `services/incidents`, module `lab_controller`), invoked synchronously by the API only; the watchdog runs in the reconciler.
 
 ### 4.2 API contract (initial draft; use `/v1`)
 
@@ -317,6 +320,8 @@ sequenceDiagram
 | GET | `/v1/labs` | Admin | Allowed lab scenarios and readiness. |
 | POST | `/v1/labs/{scenarioId}/start` | Admin | Validate lab tag/ARN; preflight, quota, cooldown, confirmation. |
 | POST | `/v1/labs/{scenarioId}/reset` | Admin | Safe cleanup/reset; no arbitrary targets. |
+
+**v1.9.0 (ADR-018):** the three lab routes are implemented. `start` needs `acknowledgeImpact: true` and an `Idempotency-Key`; the body carries nothing else. Refusals: 400 `CONFIRMATION_REQUIRED`, 403 `FORBIDDEN`, 404 unknown scenario, 409 `LAB_BUSY` / `PREFLIGHT_FAILED` / `LAB_NOT_DEPLOYED`, 502 `LAB_INJECTION_FAILED` / `LAB_RESET_FAILED`, 503 `LAB_UNAVAILABLE`. Reset ends the run but never resolves an incident.
 | GET | `/v1/health` | Public minimal | Non-sensitive API heartbeat; no resource discovery. |
 
 **API standards:** JSON UTF-8; consistent `{data,meta}` successes, `{error:{code,message,requestId}}` errors; 400 validation, 401 auth missing/invalid, 403 forbidden, 404 missing/inaccessible, 409 optimistic-lock conflict, 429 throttled, 5xx unexpected; ISO-8601 UTC; page tokens; request IDs; `Idempotency-Key` on mutations; never expose internal stack traces, AWS account identifiers, IAM policies, or sensitive resource configuration to unauthenticated clients. Client should handle transient faults, refresh, and stale state without inventing success.
@@ -334,6 +339,8 @@ Separate small on-demand tables for readability and independent permissions:
 **`opsentra-remediations`** (recommended fourth table): `PK=requestId`, actionKey, incidentId, resourceId, requestor, approver, status, executionId, idempotencyKey, expectedVersion, errorSummary, timestamps, expiry. Conditional transitions to guard execution races.
 
 **v1.8.0 (ADR-017):** remediation items add `runbookId`, `runbookVersion`, `documentHash` (pinned at request time), `requestedByRole`, `selfApproved`, `decisionReason`, `startedAt`; `executionId` is the SSM command ID. Incidents add `activeRequestId`. Registry items add `runbooks` (`runbookId → {document, documentHash}`) and the probe's `healthyStreak` / `healthyStreakSince`. `RemediationRequest` DTO adds optional `selfApproved`. **v1.8.1:** verification uses `start = max(healthyStreakSince, completedAt)` and needs HEALTHY, an unbroken `healthyStreak ≥ 3` and `lastCheckedAt ≥ start + 2 min` (at least 3 probes after the fix at the 1-minute cadence). Escalation writes use separate `SET … REMOVE activeRequestId` clauses.
+
+**`opsentra-lab-runs`** (v1.9.0, ADR-018, sixth table): `PK=runId` (`LAB-YYYYMMDD-XXXXXX`) with `scenarioId`, `resourceId`, `status`, `injection`, `commandId`, `documentHash`, `startedAt`, `startedBy`, `expiresAt`, `incidentId`, `endedAt`, `endedBy`, `endReason`; plus one `runId=LOCK` item holding `activeRunId` and `cooldownUntil` (conditional writes serialize starts). Lab audit items use `PK=LAB#<scenarioId>`. Registry items add `scenarios` (`scenarioId → {document, documentHash}`) for the hash-pinned injection document.
 
 **`opsentra-active-correlations`** (optional fifth table): correlation key → incident ID with conditional creation and explicit clear on verified terminal close; avoid accidental duplicates across asynchronous event replay.
 
@@ -527,7 +534,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** genuine Nginx failure recovered without CLI; unauthorized and arbitrary resource operations denied; failed SSM success cannot falsely mark recovered; replay does not repeat action.
 
-**Status (2026-11-12):** code and tests written (ADR-017); deployment and the live gate test pending: see `docs/phases/phase-6-checkpoint.md`.
+**Status (2026-11-13):** code and tests written (ADR-017). Live run 1 found two bugs, fixed in v1.8.1. The live gate re-run is pending: see `docs/phases/phase-6-checkpoint.md`.
 
 ### Phase 7 — Live Simulation Lab and guardrails
 
@@ -538,6 +545,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 **Deliverables:** live scenario cards, progress and reset UI, evidence of three scenarios when affordable, fallback demo when live labs off.
 
 **Gate:** every implemented scenario can be started, inspected, recovered/reset without terminal; expired/disconnected scenarios are safely cleaned up; no non-lab resources affected.
+
+**Status (2026-11-13):** built and tested locally (ADR-018); Scenario A is live, B and C stay Demo-only (planned for Live). Deployment and the live gate test are pending: see `docs/phases/phase-7-checkpoint.md`.
 
 ### Phase 8 — Analytics, reporting, and observability
 
@@ -920,5 +929,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.7.1 | 2026-11-12 | Phase 5 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
 | 1.8.0 | 2026-11-12 | ADR-017: approved remediation (hash-pinned runbook catalog, request/decision routes, self-approval allowed and flagged, coordinator with a conditional lock, SSM status events, verification by 3 consecutive healthy probes, denied attempts audited); reconciler every 2 minutes. |
 | 1.8.1 | 2026-11-13 | Fixes from Phase 6 live run 1: escalation writes used invalid `SET …, REMOVE` syntax (moto accepted it, DynamoDB did not); verification now counts probes from `max(streak start, command completed)`; the reconciler isolates errors per incident and request. No scope change. |
+| 1.9.0 | 2026-11-13 | ADR-018: Live Simulation Lab (Scenario A live; lab-controller Lambda; hash-pinned injection; preflight, confirmation, lock, cooldown, run limit; watchdog; reset never resolves; teardown verifier); `lab-runs` table; `LabScenario`/`LabRun` DTO additions; three lab routes implemented. Phase 6 and 7 live gates pending. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phase 6 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phases 6–7 built, live gates pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

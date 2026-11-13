@@ -132,9 +132,27 @@ describe('live data source fails closed', () => {
     await expect(
       liveDataSource.getAnalytics({ from: '2026-11-01', to: '2026-11-12' }),
     ).rejects.toMatchObject({ reason: 'not-implemented' });
-    await expect(
-      liveDataSource.startLab('nginx-outage', { idempotencyKey: 'k' }),
-    ).rejects.toMatchObject({ reason: 'not-implemented' });
+  });
+
+  it('lab start sends only the scenario ID, the confirmation and the idempotency key (ADR-018)', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, { data: { id: 'nginx-outage' }, meta: { dataset: 'live' } });
+    await liveDataSource.startLab('nginx-outage', { idempotencyKey: 'k-lab' });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(String(url)).toBe('https://api.example.test/v1/labs/nginx-outage/start');
+    const req = init as RequestInit;
+    expect(req.method).toBe('POST');
+    expect(JSON.parse(String(req.body))).toEqual({ acknowledgeImpact: true });
+    expect((req.headers as Record<string, string>)['idempotency-key']).toBe('k-lab');
+  });
+
+  it('lab reset posts to the reset route with an idempotency key', async () => {
+    _setTokensForTest(fresh());
+    const spy = respond(200, { data: { id: 'nginx-outage' }, meta: { dataset: 'live' } });
+    await liveDataSource.resetLab('nginx-outage', { idempotencyKey: 'k-reset' });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(String(url)).toBe('https://api.example.test/v1/labs/nginx-outage/reset');
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({});
   });
 
   it('acknowledge sends POST, the idempotency key, version and reason, and never a role', async () => {

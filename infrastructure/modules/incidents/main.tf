@@ -1,5 +1,6 @@
-# Incident ingest, reconciler, alerting (ADR-016) and the remediation
-# coordinator (ADR-017; blueprint §3.1, §4.1, §4.4).
+# Incident ingest, reconciler, alerting (ADR-016), the remediation
+# coordinator (ADR-017) and the Simulation Lab controller (ADR-018;
+# blueprint §3.1, §4.1, §4.4).
 # Least privilege: no DeleteItem anywhere (the audit trail is append-only).
 
 terraform {
@@ -16,7 +17,7 @@ variable "source_dir" { type = string }
 variable "build_dir" { type = string }
 
 variable "tables" {
-  description = "incidents, audit, correlations, resources, remediations -> { name, arn }"
+  description = "incidents, audit, correlations, resources, remediations, lab_runs -> { name, arn }"
   type        = map(object({ name = string, arn = string }))
 }
 
@@ -53,6 +54,7 @@ locals {
   ingest_name      = "${var.name_prefix}-incident-ingest"
   reconciler_name  = "${var.name_prefix}-incident-reconciler"
   coordinator_name = "${var.name_prefix}-remediation-coordinator"
+  lab_name         = "${var.name_prefix}-lab-controller"
   table_arns       = [for t in values(var.tables) : t.arn]
   env = {
     INCIDENTS_TABLE    = var.tables["incidents"].name
@@ -60,6 +62,7 @@ locals {
     CORRELATIONS_TABLE = var.tables["correlations"].name
     RESOURCES_TABLE    = var.tables["resources"].name
     REMEDIATIONS_TABLE = var.tables["remediations"].name
+    LAB_RUNS_TABLE     = var.tables["lab_runs"].name
     ACCOUNT_ID         = var.account_id
     ALERT_TOPIC_ARN    = aws_sns_topic.alerts.arn
   }
@@ -119,13 +122,13 @@ locals {
       Sid      = "IncidentData"
       Effect   = "Allow"
       Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem", "dynamodb:Query"]
-      Resource = [var.tables["incidents"].arn, var.tables["audit"].arn, var.tables["correlations"].arn, var.tables["remediations"].arn]
+      Resource = [var.tables["incidents"].arn, var.tables["audit"].arn, var.tables["correlations"].arn, var.tables["remediations"].arn, var.tables["lab_runs"].arn]
     },
     {
       Sid      = "ReadRegistryAndCorrelations"
       Effect   = "Allow"
       Action   = ["dynamodb:GetItem", "dynamodb:Scan"]
-      Resource = [var.tables["resources"].arn, var.tables["correlations"].arn, var.tables["remediations"].arn]
+      Resource = [var.tables["resources"].arn, var.tables["correlations"].arn, var.tables["remediations"].arn, var.tables["lab_runs"].arn]
     },
     {
       Sid      = "PublishAlerts"
@@ -165,6 +168,42 @@ locals {
       Resource = "*"
     },
   ]
+
+  # The lab controller: exactly the two lab documents (inject, reset), on lab-tagged
+  # instances only. Readiness checks need the describe calls, which have no
+  # resource-level permissions. It cannot run any other document.
+  lab_documents = ["${var.runbook_document_prefix}StopNginx", "${var.runbook_document_prefix}RestartNginx"]
+  lab_controller_policy = {
+    Version = "2012-10-17"
+    # DynamoDB only from the shared statements: no SNS publish, no KMS.
+    Statement = concat([for s in local.data_statements : s if contains(["IncidentData", "ReadRegistryAndCorrelations"], s.Sid)], [
+      {
+        Sid      = "TwoLabDocumentsOnly"
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = [for d in local.lab_documents : "arn:aws:ssm:${var.region}:${var.account_id}:document/${d}"]
+      },
+      {
+        Sid       = "OnLabInstancesOnly"
+        Effect    = "Allow"
+        Action    = ["ssm:SendCommand"]
+        Resource  = "arn:aws:ec2:${var.region}:${var.account_id}:instance/*"
+        Condition = { StringEquals = { "ssm:resourceTag/opsentra:lab" = "true" } }
+      },
+      {
+        Sid      = "ReadinessChecks"
+        Effect   = "Allow"
+        Action   = ["ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation", "ec2:DescribeInstances"] # no resource-level support
+        Resource = "*"
+      },
+      {
+        Sid      = "OwnLogs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.lab.arn}:*"
+      },
+    ])
+  }
 
   ingest_policy = {
     Version = "2012-10-17"
@@ -231,6 +270,11 @@ resource "aws_cloudwatch_log_group" "coordinator" {
   retention_in_days = var.log_retention_days
 }
 
+resource "aws_cloudwatch_log_group" "lab" {
+  name              = "/aws/lambda/${local.lab_name}"
+  retention_in_days = var.log_retention_days
+}
+
 resource "aws_cloudwatch_log_group" "reconciler" {
   name              = "/aws/lambda/${local.reconciler_name}"
   retention_in_days = var.log_retention_days
@@ -256,6 +300,17 @@ resource "aws_iam_role_policy" "coordinator" {
   name   = "coordinator"
   role   = aws_iam_role.coordinator.id
   policy = jsonencode(local.coordinator_policy)
+}
+
+resource "aws_iam_role" "lab" {
+  name               = "${local.lab_name}-role"
+  assume_role_policy = jsonencode(local.lambda_trust)
+}
+
+resource "aws_iam_role_policy" "lab" {
+  name   = "lab-controller"
+  role   = aws_iam_role.lab.id
+  policy = jsonencode(local.lab_controller_policy)
 }
 
 resource "aws_iam_role" "reconciler" {
@@ -338,6 +393,31 @@ resource "aws_lambda_function_event_invoke_config" "coordinator" {
   maximum_event_age_in_seconds = 900
 }
 
+# Invoked synchronously by the API Lambda only; no event source, no retries.
+resource "aws_lambda_function" "lab" {
+  #checkov:skip=CKV_AWS_115:Account concurrency limit is 10; one call per admin lab action.
+  #checkov:skip=CKV_AWS_116:Synchronous call from the API; the caller sees any failure.
+  function_name    = local.lab_name
+  role             = aws_iam_role.lab.arn
+  runtime          = "python3.12"
+  architectures    = ["arm64"]
+  handler          = "opsentra_incidents.lab_controller.lambda_handler"
+  filename         = data.archive_file.code.output_path
+  source_code_hash = data.archive_file.code.output_base64sha256
+  memory_size      = 256
+  timeout          = 8 # inside the API's 10 s budget
+
+  environment { variables = local.env }
+
+  logging_config {
+    log_format = "Text"
+    log_group  = aws_cloudwatch_log_group.lab.name
+  }
+
+  tags       = { "opsentra:component" = "lab" }
+  depends_on = [aws_iam_role_policy.lab]
+}
+
 resource "aws_lambda_function" "reconciler" {
   #checkov:skip=CKV_AWS_115:Account concurrency limit is 10; one scheduled run every 5 minutes.
   #checkov:skip=CKV_AWS_116:Scheduled reconciler: a failed run is simply repeated by the next one.
@@ -410,5 +490,8 @@ output "reconcile_schedule" { value = aws_scheduler_schedule.reconciler.schedule
 output "coordinator_function_arn" { value = aws_lambda_function.coordinator.arn }
 output "coordinator_function_name" { value = aws_lambda_function.coordinator.function_name }
 output "coordinator_policy" { value = local.coordinator_policy }
+output "lab_controller_function_arn" { value = aws_lambda_function.lab.arn }
+output "lab_controller_function_name" { value = aws_lambda_function.lab.function_name }
+output "lab_controller_policy" { value = local.lab_controller_policy }
 output "coordinator_has_dlq" { value = aws_lambda_function.coordinator.dead_letter_config[0].target_arn == aws_sqs_queue.coordinator_dlq.arn }
 output "has_dlq" { value = aws_lambda_function.ingest.dead_letter_config[0].target_arn == aws_sqs_queue.ingest_dlq.arn }

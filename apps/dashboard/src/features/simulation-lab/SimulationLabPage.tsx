@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { describeError } from '@/api/describe-error';
 import { MonoId } from '@/components/data/MonoId';
 import { ConfirmDialog } from '@/components/dialogs/ConfirmDialog';
-import { PlannedPanel } from '@/components/feedback/states';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ModeGuard } from '@/components/mode/ModeGuard';
 import { IncidentStateBadge } from '@/components/status/badges';
@@ -22,6 +21,7 @@ import { useDemoSession } from '@/modes/demo/demo-store';
 import { useMode } from '@/modes/mode-store';
 import { useView } from '@/stores/preferences';
 import { EasyLab } from '@/features/easy/EasyLab';
+import { LiveLab } from '@/features/simulation-lab/LiveLab';
 import { useCurrentRole } from '@/modes/session';
 import type { LabScenario } from '@/types/domain';
 
@@ -198,20 +198,16 @@ export function SimulationLabPage() {
       <PageHeader
         title="Simulation Lab"
         description={
-          view === 'easy'
-            ? 'Break something on purpose and fix it, safely. Everything here is simulated.'
-            : 'Run a failure scenario and follow it from detection to verified recovery.'
+          mode === 'live'
+            ? 'Break the disposable AWS lab on purpose, then recover it with an approved runbook.'
+            : view === 'easy'
+              ? 'Break something on purpose and fix it, safely. Everything here is simulated.'
+              : 'Run a failure scenario and follow it from detection to verified recovery.'
         }
       />
       <ModeGuard>
-        {mode === 'demo' ? view === 'easy' ? <EasyLab /> : <LabContent /> : null}
+        {mode === 'live' ? <LiveLab /> : view === 'easy' ? <EasyLab /> : <LabContent />}
       </ModeGuard>
-      {mode === 'live' ? (
-        <PlannedPanel phase="Phase 7" title="Live scenarios" className="mt-4">
-          Admin-only live tests on tagged, disposable lab resources with preflight checks, cooldown
-          and cleanup.
-        </PlannedPanel>
-      ) : null}
     </>
   );
 }

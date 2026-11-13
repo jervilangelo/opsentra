@@ -10,6 +10,8 @@
    the coordinator never picked up, commands with no status event.
 5. Remediation verification (remediation.verify): VERIFYING -> RESOLVED only
    with 3 consecutive healthy probes after the command finished.
+6. Simulation Lab watchdog (lab.watchdog): confirms fault injection, links the
+   incident, ends resolved runs, resets expired ones, ends runs whose lab is gone.
 It never resolves on a timeout or on missing data.
 """
 
@@ -21,7 +23,7 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-from . import core, ingest, remediation
+from . import core, ingest, lab, remediation
 from .ingest import correlation_key
 
 logger = logging.getLogger("opsentra-incident-reconciler")
@@ -95,6 +97,14 @@ def run(
             _active(store, corr, states, registry_by_id, report)
         except Exception:  # noqa: BLE001 - one bad incident must not block the rest
             logger.exception("reconcile failed for %s", corr.get("activeIncidentId"))
+            report["errors"] = report.get("errors", 0) + 1
+
+    # 6. Simulation Lab watchdog, after incidents so a resolution ends its run.
+    if store.t.lab_runs and ssm is not None and ec2 is not None:
+        try:
+            report |= lab.watchdog(store, ssm, ec2)
+        except Exception:  # noqa: BLE001
+            logger.exception("lab watchdog failed")
             report["errors"] = report.get("errors", 0) + 1
     return report
 

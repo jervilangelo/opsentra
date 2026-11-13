@@ -52,6 +52,12 @@ variable "coordinator_function" {
   default     = null
 }
 
+variable "lab_controller_function" {
+  description = "The Simulation Lab controller (ADR-018); the API only invokes it."
+  type        = object({ name = string, arn = string })
+  default     = null
+}
+
 variable "jwt_issuer" {
   type = string
 }
@@ -118,6 +124,10 @@ locals {
     "GET /v1/remediations"                                = { protected = true }
     "GET /v1/remediations/{requestId}"                    = { protected = true }
     "GET /v1/runbooks"                                    = { protected = true }
+
+    "GET /v1/labs"                     = { protected = true }
+    "POST /v1/labs/{scenarioId}/start" = { protected = true }
+    "POST /v1/labs/{scenarioId}/reset" = { protected = true }
   }
 
   bundle = merge([
@@ -164,7 +174,8 @@ locals {
   }
 
   # Least privilege: its own logs, reads on named tables, conditional writes
-  # (never deletes) on the incident tables, and invoking only the coordinator.
+  # (never deletes) on the incident tables, and invoking only the coordinator
+  # and the lab controller. It never calls SSM or EC2 itself.
   lambda_policy = {
     Version = "2012-10-17"
     Statement = concat(
@@ -186,11 +197,11 @@ locals {
         Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"]
         Resource = [for t in values(var.write_tables) : t.arn]
       }],
-      var.coordinator_function == null ? [] : [{
-        Sid      = "InvokeCoordinatorOnly"
+      var.coordinator_function == null && var.lab_controller_function == null ? [] : [{
+        Sid      = "InvokeCoordinatorAndLabControllerOnly"
         Effect   = "Allow"
         Action   = ["lambda:InvokeFunction"]
-        Resource = var.coordinator_function.arn
+        Resource = compact([try(var.coordinator_function.arn, ""), try(var.lab_controller_function.arn, "")])
       }],
     )
   }
@@ -221,15 +232,16 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      OPSENTRA_ENVIRONMENT = var.environment
-      OPSENTRA_VERSION     = var.app_version
-      LOG_LEVEL            = "INFO"
-      RESOURCES_TABLE      = try(var.read_tables["resources"].name, "")
-      INCIDENTS_TABLE      = try(var.read_tables["incidents"].name, "")
-      AUDIT_TABLE          = try(var.read_tables["audit"].name, "")
-      CORRELATIONS_TABLE   = try(var.write_tables["correlations"].name, "")
-      REMEDIATIONS_TABLE   = try(var.write_tables["remediations"].name, "")
-      COORDINATOR_FUNCTION = try(var.coordinator_function.name, "")
+      OPSENTRA_ENVIRONMENT    = var.environment
+      OPSENTRA_VERSION        = var.app_version
+      LOG_LEVEL               = "INFO"
+      RESOURCES_TABLE         = try(var.read_tables["resources"].name, "")
+      INCIDENTS_TABLE         = try(var.read_tables["incidents"].name, "")
+      AUDIT_TABLE             = try(var.read_tables["audit"].name, "")
+      CORRELATIONS_TABLE      = try(var.write_tables["correlations"].name, "")
+      REMEDIATIONS_TABLE      = try(var.write_tables["remediations"].name, "")
+      COORDINATOR_FUNCTION    = try(var.coordinator_function.name, "")
+      LAB_CONTROLLER_FUNCTION = try(var.lab_controller_function.name, "")
     }
   }
 

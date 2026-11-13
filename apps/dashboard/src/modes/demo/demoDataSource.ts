@@ -152,4 +152,9 @@ export const demoDataSource: DataSource = {
   closeIncident: (incidentId, input) => command({ type: 'close', incidentId, input }, incidentById),
   startLab: (scenarioId, input) =>
     command({ type: 'start-lab', scenarioId, input }, (e, id) => labs(e).find((l) => l.id === id)),
+  // Demo runs finish through the guided flow; the whole demo resets from the guide.
+  resetLab: () =>
+    Promise.reject(
+      new ApiRequestError(409, 'DEMO_RESET', 'In Demo Mode, use Reset demo in the guide.'),
+    ),
 };

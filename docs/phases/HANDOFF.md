@@ -1,36 +1,47 @@
 # Session handoff (read this first)
 
-> Last updated: **2026-11-13, mid-session.** Update this file at the end of every working session.
+> Last updated: **2026-11-13, end of session.** Update this file at the end of every working session.
 
 ## Where we are
 
 | | |
 |---|---|
-| **Phase** | **6: Controlled automated remediation**. In progress, live gate partly done. |
+| **Phase** | **6 and 7 both built and tested locally; neither live gate has run.** The owner asked to continue into Phase 7 (2026-11-13) and approved every step up to Phase 7's end, AWS writes included. Phase 6 is **not** marked complete: its live gate is still pending. |
 | **Phases complete** | 1–5 (gates passed and approved by the owner on 2026-11-12). |
-| **Branch** | `feat/remediation`, fast-forwarded into `main` and pushed. |
-| **AWS now** | **Control plane deployed** with Phase 6. **Lab destroyed**, teardown verified at 08:58 UTC (EC2, EBS, EIP, VPC, SGs, alarms, log groups, probe schedule, registry, rules all 0). |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.8.0) and `CLAUDE.md`. Design for this phase: `docs/adr/ADR-017-approved-remediation.md`. Evidence: `docs/phases/phase-6-checkpoint.md`. |
+| **Branch** | `feat/remediation`. Commit `884bacb` (Phase 6 fixes) and the Phase 7 commit are **local and not pushed**. `main` has Phase 6 up to `fa87a56`. |
+| **AWS now** | Unchanged since 2026-11-12. **Control plane deployed with the old Phase 6 code** (bug 1 still live: the reconciler raises on `INC-20261112-1838F3` every 2 minutes). **Lab destroyed.** |
+| **Blocker** | **The AWS CLI session expired.** The owner must run `aws login`; no AWS command, including `terraform plan`, works until then. |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (**v1.9.0**) and `CLAUDE.md`. Designs: `docs/adr/ADR-017-approved-remediation.md`, `docs/adr/ADR-018-live-simulation-lab.md`. Evidence: `docs/phases/phase-6-checkpoint.md`, `docs/phases/phase-7-checkpoint.md`. |
 
-## Two bugs found by the live gate test
+## Next: one live session finishes both gates
 
-> **2026-11-13: bugs 1 and 2 fixed in code (uncommitted on `feat/remediation`), not yet deployed.** `_incident_update` takes `remove=[...]`; `verify()` uses `_verified_after()`; the reconciler isolates errors per incident and request. The incident tests now check every `UpdateExpression` against DynamoDB's grammar (conftest `check_update_expression`), which fails on the old code. Incidents 79 passed, API 48 (+6 live skipped), health-check 16, ruff clean. ADR-017 and blueprint v1.8.1 updated. **Next:** the AWS CLI login had expired, so the control-plane plan has not run; then step 3.
+Follow `docs/phases/phase-7-checkpoint.md` → "Live gate plan". In short:
+1. `aws login` (owner).
+2. Run the control-plane plan and check it shows only the expected changes:
+   - the `lab-runs` table;
+   - the `lab-controller` Lambda, role, policy and log group;
+   - 3 API routes;
+   - Lambda code and environment updates;
+   - IAM updates.
 
-1. **Escalation writes are invalid DynamoDB syntax (serious).**
-   - **Where:** `services/incidents/src/opsentra_incidents/remediation.py`, `_incident_update(...)`. It is called with `extra_sets="REMOVE activeRequestId"`, which builds `SET #s = :to, version = …, REMOVE activeRequestId`.
-   - **Effect:** real DynamoDB rejects it (`ValidationException … token: "REMOVE"`). moto accepted it, which is why the unit tests passed. Every escalation path fails: reject, approval expiry, failed SSM, and verification failure.
-   - **Live impact:** the reconciler raises on incident `INC-20261112-1838F3` (stuck in VERIFYING) every 2 minutes, which **stops the rest of each reconcile run**.
-   - **Fix:**
-     - give `_incident_update` a separate `remove: list[str]` argument, appended as ` REMOVE …` after the SET clause;
-     - add a unit test that checks the generated `UpdateExpression` text, because moto is lax;
-     - make `reconciler.run` catch errors per incident and request, so one bad item can't block the whole run.
-2. **Verification can never pass when the streak starts just before SSM reports success.**
-   - **What happened live:** the probe's healthy streak began at 08:42:23, but the command's `completedAt` was 08:42:24.
-   - **Why it blocks:** `verify()` needs `healthyStreakSince > completedAt`, so a genuine recovery waits forever and would escalate.
-   - **Fix:** with `start = max(healthyStreakSince, completedAt)`, require `healthyStreak ≥ 3` (unbroken), HEALTHY, the alarm OK, and `lastCheckedAt ≥ start + 2 min`. At the 1-minute probe cadence that is at least 3 healthy probes, all after the fix finished. Update the unit tests, ADR-017 and the blueprint §4.3 note to match.
-3. **Then deploy the fix and repair the stuck incident.**
-   - **Deploy (needs owner approval):** a control-plane `terraform plan` / `apply`, which changes Lambda code only.
-   - **Expected after deploy:** the reconciler escalates `INC-20261112-1838F3`, because its lab no longer exists. That is correct; record it.
+   Then apply.
+3. Confirm `INC-20261112-1838F3` escalates.
+4. Deploy the lab.
+5. Phase 6: the happy path to RESOLVED, then self-approval plus false success, which must end ESCALATED.
+6. Phase 7: `scripts/gate/live-lab.cjs`, covering:
+   - start → incident → approved recovery → COMPLETED;
+   - a start during cooldown is refused;
+   - start → reset;
+   - attack checks;
+   - destroy with a run active, which the watchdog must end.
+7. Destroy the lab and run `scripts/gate/verify_teardown.py`.
+8. Record the evidence, commit, push, and ask for the Phase 6 and Phase 7 gate reviews.
+
+## Phase 6 bugs from live run 1 (fixed in code, not deployed)
+
+1. **Escalation writes used invalid DynamoDB syntax.** `SET …, REMOVE activeRequestId` became `SET … REMOVE activeRequestId` (`_incident_update(remove=[...])`). The incident tests now check every `UpdateExpression` against DynamoDB's grammar (`conftest.check_update_expression`) because moto is lax.
+2. **Verification could never pass** when the probe streak began just before SSM reported Success. It now uses `start = max(healthyStreakSince, completedAt)`, needs an unbroken streak of 3 or more, and `lastCheckedAt ≥ start + 2 min`.
+3. **The reconciler (and the new lab watchdog) isolate errors per item**, so one bad incident or run no longer blocks the rest.
 
 ## Live gate status (Phase 6)
 
@@ -67,14 +78,16 @@
 - **Gate helper scripts** (`scripts/gate/`):
   - `live-remediate.cjs <outDir> <incidentId> request|approve|self|watch|shot` drives the Live UI as the test users;
   - `attack_replay.py <incidentId> <requestId> attacks|replay` runs the API attack and replay checks;
-  - `replay_events.py` replays the Phase 5 ingest duplicate, malformed and out-of-order events.
+  - `replay_events.py` replays the Phase 5 ingest duplicate, malformed and out-of-order events;
+  - `live-lab.cjs <outDir> start|watch|reset|shot` drives the Live Simulation Lab as the admin test user (Phase 7);
+  - `verify_teardown.py` (read-only) prints what is left of the lab and exits 0 only when nothing is.
 - **Lab failure injection** (allowlisted SSM documents):
 
   ```
   aws ssm send-command --document-name Opsentra-Lab-StopNginx --instance-ids <id>
   aws ssm send-command --document-name Opsentra-Lab-RestartNginx --instance-ids <id>
   ```
-- **checkov:** a throwaway venv (`py -3.12 -m venv`, `pip install checkov`), then `python -m checkov.main -d infrastructure --framework terraform --quiet --compact`. The last result was 191 passed, 0 failed.
+- **checkov:** a throwaway venv (`py -3.12 -m venv`, `pip install checkov`), then `python -m checkov.main -d infrastructure --framework terraform --quiet --compact`. The last result (2026-11-13) was 202 passed, 0 failed.
 
 ## Open items carried over
 

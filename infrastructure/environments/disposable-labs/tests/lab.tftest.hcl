@@ -216,4 +216,12 @@ run "runbook_status_and_pinned_runbook" {
     condition     = !can(jsondecode(aws_dynamodb_table_item.registry["regression"].item).runbooks)
     error_message = "No live runbook is registered for the regression function yet."
   }
+  assert {
+    condition     = jsondecode(aws_dynamodb_table_item.registry["web"].item).scenarios.M["nginx-outage"].M.documentHash.S == aws_ssm_document.stop_nginx.hash
+    error_message = "The Simulation Lab injection document must be hash-pinned in the registry (ADR-018)."
+  }
+  assert {
+    condition     = !can(jsondecode(aws_dynamodb_table_item.registry["regression"].item).scenarios)
+    error_message = "Scenario B (planned) has no live Simulation Lab entry."
+  }
 }

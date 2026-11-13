@@ -8,6 +8,7 @@ import type {
   MutationGuard,
   RemediationDecisionInput,
   RemediationRequestInput,
+  ResetLabInput,
   StartLabInput,
 } from '@/types/domain';
 
@@ -134,9 +135,15 @@ export function useAudit() {
   return useQuery({ queryKey: queryKeys.audit(source.mode), queryFn: () => source.listAudit() });
 }
 
+/** Live: every 10 s while a run is active, otherwise every 30 s. */
 export function useLabs() {
   const source = useDataSource();
-  return useQuery({ queryKey: queryKeys.labs(source.mode), queryFn: () => source.listLabs() });
+  return useQuery({
+    queryKey: queryKeys.labs(source.mode),
+    queryFn: () => source.listLabs(),
+    refetchInterval: (query) =>
+      pollFor(source.mode, Boolean(query.state.data?.data.some((s) => s.activeRun))),
+  });
 }
 
 /**
@@ -180,4 +187,9 @@ export const useCloseIncident = () =>
 export const useStartLab = () =>
   useSourceMutation((s, v: { scenarioId: string; input: StartLabInput }) =>
     s.startLab(v.scenarioId, v.input),
+  );
+
+export const useResetLab = () =>
+  useSourceMutation((s, v: { scenarioId: string; input: ResetLabInput }) =>
+    s.resetLab(v.scenarioId, v.input),
   );

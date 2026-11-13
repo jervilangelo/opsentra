@@ -11,6 +11,7 @@ import type {
   RemediationDecisionInput,
   RemediationRequest,
   RemediationRequestInput,
+  ResetLabInput,
   ResourceSummary,
   Runbook,
   StartLabInput,
@@ -68,4 +69,6 @@ export interface DataSource {
   closeIncident(incidentId: string, input: MutationGuard): Promise<ApiSuccess<Incident>>;
   /** POST /v1/labs/{scenarioId}/start (Admin) */
   startLab(scenarioId: string, input: StartLabInput): Promise<ApiSuccess<LabScenario>>;
+  /** POST /v1/labs/{scenarioId}/reset (Admin; v1.9.0, ADR-018) */
+  resetLab(scenarioId: string, input: ResetLabInput): Promise<ApiSuccess<LabScenario>>;
 }

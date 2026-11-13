@@ -1,4 +1,12 @@
-import type { Health, IncidentState, ResourceType, Role, RunbookState, Severity } from './domain';
+import type {
+  Health,
+  IncidentState,
+  LabRunStatus,
+  ResourceType,
+  Role,
+  RunbookState,
+  Severity,
+} from './domain';
 
 /** Display-only mapping (ADR-011). The DTO keeps CRITICAL/HIGH/MEDIUM/LOW. */
 export const SEVERITY_DISPLAY: Record<Severity, { code: string; label: string }> = {
@@ -42,6 +50,14 @@ export const RUNBOOK_STATE_DISPLAY: Record<RunbookState, { label: string; tone: 
   REJECTED: { label: 'Rejected', tone: 'unknown' },
   RUNNING: { label: 'Running', tone: 'info' },
   SUCCEEDED: { label: 'Succeeded', tone: 'healthy' },
+  FAILED: { label: 'Failed', tone: 'critical' },
+};
+
+export const LAB_RUN_DISPLAY: Record<LabRunStatus, { label: string; tone: StatusTone }> = {
+  ACTIVE: { label: 'Running', tone: 'info' },
+  COMPLETED: { label: 'Completed', tone: 'healthy' },
+  RESET: { label: 'Reset', tone: 'unknown' },
+  EXPIRED: { label: 'Expired', tone: 'warning' },
   FAILED: { label: 'Failed', tone: 'critical' },
 };
 

@@ -157,6 +157,44 @@ export interface LabScenario {
   /** False while another scenario is active (one-active-scenario lock). */
   available: boolean;
   unavailableReason?: string;
+  /** v1.9.0 (ADR-018), Live only: ordered readiness checks; the first failure is unavailableReason. */
+  preflight?: LabPreflightCheck[];
+  /** v1.9.0: the run in progress for this scenario, if any. */
+  activeRun?: LabRun;
+  /** v1.9.0: the most recent finished run, when none is active. */
+  lastRun?: LabRun;
+  /** v1.9.0: no new run may start before this time. */
+  cooldownUntil?: string;
+  /** v1.9.0: when the disposable lab terminates itself. */
+  labExpiresAt?: string;
+}
+
+/** v1.9.0 (ADR-018): one readiness check from GET /v1/labs. */
+export interface LabPreflightCheck {
+  id: string;
+  label: string;
+  ok: boolean;
+  detail?: string;
+}
+
+export type LabRunStatus = 'ACTIVE' | 'COMPLETED' | 'RESET' | 'EXPIRED' | 'FAILED';
+
+/** v1.9.0 (ADR-018): a Live Simulation Lab run. */
+export interface LabRun {
+  runId: string;
+  scenarioId: string;
+  resourceId: string;
+  status: LabRunStatus;
+  /** The fault injection's SSM state: sent, then confirmed (or failed). */
+  injection: 'PENDING' | 'SENT' | 'SUCCEEDED' | 'FAILED';
+  startedAt: string;
+  startedBy: string;
+  /** The watchdog resets the run at this time if it is still active. */
+  expiresAt: string;
+  incidentId?: string;
+  endedAt?: string;
+  endedBy?: string;
+  endReason?: string;
 }
 
 export interface MeanDuration {
@@ -204,5 +242,10 @@ export interface RemediationDecisionInput extends MutationGuard {
 }
 
 export interface StartLabInput {
+  idempotencyKey: string;
+}
+
+/** v1.9.0 (ADR-018): POST /v1/labs/{scenarioId}/reset. */
+export interface ResetLabInput {
   idempotencyKey: string;
 }

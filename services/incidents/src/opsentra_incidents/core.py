@@ -60,6 +60,7 @@ class Tables:
     correlations: str
     resources: str
     remediations: str = ""
+    lab_runs: str = ""
 
     @staticmethod
     def from_env() -> Tables:
@@ -70,6 +71,7 @@ class Tables:
             correlations=e.get("CORRELATIONS_TABLE", ""),
             resources=e.get("RESOURCES_TABLE", ""),
             remediations=e.get("REMEDIATIONS_TABLE", ""),
+            lab_runs=e.get("LAB_RUNS_TABLE", ""),
         )
 
 

@@ -105,7 +105,7 @@ export const liveDataSource: DataSource = {
     get(`/v1/remediations${incidentId ? `?incidentId=${enc(incidentId)}` : ''}`),
   getAnalytics: later('Phase 8'),
   listAudit: () => get('/v1/audit'),
-  listLabs: later('Phase 7'),
+  listLabs: () => get('/v1/labs'),
   acknowledgeIncident: (id, input) =>
     get(`/v1/incidents/${enc(id)}/acknowledge`, {
       method: 'POST',
@@ -146,5 +146,19 @@ export const liveDataSource: DataSource = {
       body: { expectedVersion: input.expectedVersion },
       idempotencyKey: input.idempotencyKey,
     }),
-  startLab: later('Phase 7'),
+  // Called only from the confirmation dialog, which is the impact acknowledgement.
+  // Only the scenario ID travels: the backend resolves the instance and the
+  // hash-pinned documents from its registry (ADR-018).
+  startLab: (scenarioId, input) =>
+    get(`/v1/labs/${enc(scenarioId)}/start`, {
+      method: 'POST',
+      body: { acknowledgeImpact: true },
+      idempotencyKey: input.idempotencyKey,
+    }),
+  resetLab: (scenarioId, input) =>
+    get(`/v1/labs/${enc(scenarioId)}/reset`, {
+      method: 'POST',
+      body: {},
+      idempotencyKey: input.idempotencyKey,
+    }),
 };

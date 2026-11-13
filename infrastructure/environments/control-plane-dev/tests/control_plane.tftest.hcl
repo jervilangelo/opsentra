@@ -65,8 +65,12 @@ run "api_routes_and_throttling" {
     error_message = "No route other than /v1/health may be public."
   }
   assert {
-    condition     = length(module.api.route_authorization) == 17 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
-    error_message = "Phase 6 exposes seventeen routes and every write route needs a JWT."
+    condition     = length(module.api.route_authorization) == 20 && alltrue([for k, v in module.api.route_authorization : v == "JWT" if startswith(k, "POST ")])
+    error_message = "Phase 7 exposes twenty routes and every write route needs a JWT."
+  }
+  assert {
+    condition     = alltrue([for r in ["GET /v1/labs", "POST /v1/labs/{scenarioId}/start", "POST /v1/labs/{scenarioId}/reset"] : module.api.route_authorization[r] == "JWT"])
+    error_message = "The Simulation Lab routes need a Cognito JWT."
   }
   assert {
     condition     = module.api.throttling.burst <= 10 && module.api.throttling.rate <= 5
@@ -91,10 +95,10 @@ run "lambda_role_is_least_privilege" {
   }
   assert {
     condition = alltrue([
-      for s in module.api.lambda_policy.Statement : s.Resource == module.incidents.coordinator_function_arn
+      for s in module.api.lambda_policy.Statement : toset(s.Resource) == toset([module.incidents.coordinator_function_arn, module.incidents.lab_controller_function_arn])
       if contains(s.Action, "lambda:InvokeFunction")
     ])
-    error_message = "The API may invoke only the remediation coordinator."
+    error_message = "The API may invoke only the remediation coordinator and the lab controller."
   }
   assert {
     condition = !anytrue(flatten([
@@ -105,6 +109,41 @@ run "lambda_role_is_least_privilege" {
   assert {
     condition     = !anytrue([for s in module.api.lambda_policy.Statement : s.Resource == "*"])
     error_message = "No wildcard resources on the Lambda role."
+  }
+}
+
+run "lab_controller_is_least_privilege" {
+  command = apply # mocked: nothing is created
+
+  assert {
+    condition = toset(flatten([
+      for s in module.incidents.lab_controller_policy.Statement : s.Resource
+      if contains(s.Action, "ssm:SendCommand") && s.Sid == "TwoLabDocumentsOnly"
+    ])) == toset(["arn:aws:ssm:ap-southeast-1:111122223333:document/Opsentra-Lab-StopNginx", "arn:aws:ssm:ap-southeast-1:111122223333:document/Opsentra-Lab-RestartNginx"])
+    error_message = "The lab controller may send exactly the two lab documents, no prefix wildcard."
+  }
+  assert {
+    condition = alltrue([
+      for s in module.incidents.lab_controller_policy.Statement : s.Condition.StringEquals["ssm:resourceTag/opsentra:lab"] == "true"
+      if s.Sid == "OnLabInstancesOnly"
+    ])
+    error_message = "SendCommand targets must carry opsentra:lab=true."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for s in module.incidents.lab_controller_policy.Statement : [
+        for a in s.Action : contains(["ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation", "ec2:DescribeInstances"], a)
+      ] if s.Resource == "*"
+    ]))
+    error_message = "Only describe and status calls (no resource-level support) may use a wildcard resource."
+  }
+  assert {
+    condition = !anytrue(flatten([
+      for s in module.incidents.lab_controller_policy.Statement : [
+        for a in s.Action : contains(["dynamodb:DeleteItem", "ssm:StartSession", "ssm:CreateDocument", "ssm:UpdateDocument", "ec2:TerminateInstances", "ec2:RunInstances"], a)
+      ]
+    ]))
+    error_message = "The lab controller cannot delete data, open sessions, change documents or manage instances."
   }
 }
 
@@ -169,7 +208,7 @@ run "cost_guardrails" {
     error_message = "DynamoDB tables must be on-demand."
   }
   assert {
-    condition     = length(module.tables.table_names) == 5
+    condition     = length(module.tables.table_names) == 6
     error_message = "Exactly the five §4.3 tables."
   }
   assert {

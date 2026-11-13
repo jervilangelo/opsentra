@@ -95,6 +95,11 @@ locals {
         document     = { S = aws_ssm_document.restart_nginx.name }
         documentHash = { S = aws_ssm_document.restart_nginx.hash }
       } } } }
+      # Phase 7 (ADR-018): the Simulation Lab's fault injection, hash-pinned the same way.
+      scenarios = { M = { "nginx-outage" = { M = {
+        document     = { S = aws_ssm_document.stop_nginx.name }
+        documentHash = { S = aws_ssm_document.stop_nginx.hash }
+      } } } }
       scenario     = { S = "nginx" }
       severity     = { S = "HIGH" }
       alarmNames   = { L = [{ S = aws_cloudwatch_metric_alarm.nginx.alarm_name }] }
