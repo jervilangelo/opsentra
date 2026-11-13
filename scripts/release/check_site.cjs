@@ -3,10 +3,13 @@
 // Checks: Demo Mode loads with no sign-in and shows DEMO — SYNTHETIC DATA; deep
 // links work (GitHub Pages 404.html fallback); the guided scenario starts; Live
 // mode asks for sign-in and shows no data; no CSP violation or script error.
+// --expect-live: the build must have Live config (a Sign in button in Live
+// mode, and a CSP whose connect-src is exactly this site, the API and Cognito).
 const { createRequire } = require('module');
 const req = createRequire(require('path').resolve(__dirname, '../../apps/dashboard/package.json'));
 const { chromium } = req('@playwright/test');
 const site = (process.argv[2] || '').replace(/\/?$/, '/');
+const expectLive = process.argv.includes('--expect-live');
 let failures = 0;
 const check = (name, ok, extra = '') => {
   failures += ok ? 0 : 1;
@@ -47,6 +50,17 @@ const check = (name, ok, extra = '') => {
     const live = await p.locator('main').innerText();
     check('Live mode needs sign-in or says it is not configured, and shows no data', /Sign in|not configured|not connected|no Live API configuration/i.test(live) && !/INC-DEMO/.test(live));
     check('Live mode shows no demo banner', (await p.getByText('DEMO — SYNTHETIC DATA').count()) === 0);
+    if (expectLive) {
+      check('Live build: Sign in is offered', (await p.getByRole('button', { name: 'Sign in' }).count()) > 0);
+      const csp = (await p.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')) || '';
+      const connect = ((/connect-src ([^;]+)/.exec(csp) || [])[1] || '').split(' ');
+      const ok =
+        connect.length === 3 &&
+        connect.includes("'self'") &&
+        connect.some((c) => /^https:\/\/[a-z0-9]+\.execute-api\.ap-southeast-1\.amazonaws\.com$/.test(c)) &&
+        connect.some((c) => /^https:\/\/[a-z0-9-]+\.auth\.ap-southeast-1\.amazoncognito\.com$/.test(c));
+      check('Live build: CSP connect-src is exactly self, the API and Cognito', ok, connect.join(' '));
+    }
 
     check('no CSP violation or script error', problems.length === 0, problems.slice(0, 2).join(' | '));
   } catch (err) {
