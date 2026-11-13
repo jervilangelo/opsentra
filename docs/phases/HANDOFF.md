@@ -6,33 +6,23 @@
 
 | | |
 |---|---|
-| **Phase** | **10: Public release. Gate tested on 2026-11-13. Waiting for the owner's review**, then the `v1.0.0` tag. |
-| **Site** | <https://jervilangelo.github.io/opsentra/>. Pages is deployed by `.github/workflows/pages.yml`. The public `VITE_*` values are GitHub repository variables. |
-| **Branch** | `main` (published) and `feat/release`. |
-| **AWS now** | **Control plane deployed.** **Lab destroyed**, teardown verified after the public-site gate run. |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.12.0) and `CLAUDE.md`. Latest ADR: ADR-021. Evidence: `docs/phases/phase-10-checkpoint.md`. |
+| **Phase** | **All ten phases complete. v1.0.0 released on 2026-11-13** (owner approved). |
+| **Site** | <https://jervilangelo.github.io/opsentra/>. Pages is deployed by `.github/workflows/pages.yml` on pushes to `main` under `apps/dashboard/`. The public `VITE_*` values are GitHub repository variables. |
+| **Branch** | `main` (tag `v1.0.0`). |
+| **AWS now** | **Control plane deployed.** **Lab destroyed** (teardown verified). |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.12.1) and `CLAUDE.md`. Latest ADR: ADR-021. |
 
-## Next
+## Next (owner)
 
-1. The owner reviews the Phase 10 gate.
-2. On approval:
-   - tag `v1.0.0` and push the tag;
-   - update CLAUDE.md "Current phase" to "all phases complete";
-   - update the README badge and the blueprint version;
-   - merge.
-3. After v1.0.0 (blueprint §14), the owner chooses what comes next.
-
-Still open:
 - **F2:** Cognito admin MFA.
 - Choose a license.
-- Activate the `opsentra:project` cost-allocation tag.
 - Confirm the SNS email subscription.
+- Activate the `opsentra:project` cost-allocation tag.
 - The control-plane destroy test (deferred).
 
-Release tools:
-- `scripts/release/check_bundle.py` and `check_site.cjs <url> [--expect-live]`;
-- `record_demo.cjs`;
-- the gate scripts take `OPSENTRA_UI_URL` to run against the public site.
+**New work** (blueprint §14 roadmap): start with a blueprint update and an ADR, on a feature branch.
+
+Before any live demo: follow `docs/interview-demo/README.md` (checklist) and `docs/operations/runbooks.md`.
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 

@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.12.0 (Phases 1–9 complete; Phase 10 gate tested, owner review pending)  
+> **Version:** 1.12.1 (all ten phases complete; v1.0.0 released)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation), 7 (Live Simulation Lab) and 8 (analytics and observability) passed their gates and were approved by the owner on 2026-11-13. Phase 9 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
+> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6–10 passed their gates and were approved by the owner on 2026-11-13. v1.0.0 is published at https://jervilangelo.github.io/opsentra/. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -590,7 +590,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** visitor can use Demo Mode without login; authenticated admin can show live workflow when resources are on; documentation and screenshots match actual implementation; no leaked sensitive configuration.
 
-**Status (2026-11-13):** published at <https://jervilangelo.github.io/opsentra/>; the gate was tested live on the public site (ADR-021); owner review pending: see `docs/phases/phase-10-checkpoint.md`.
+**Status (2026-11-13):** complete; published at <https://jervilangelo.github.io/opsentra/>, gate tested live on the public site and approved by the owner (ADR-021); released as v1.0.0: see `docs/phases/phase-10-checkpoint.md`.
 
 ### 7.1 Cross-phase gate checklist template
 
@@ -950,5 +950,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.11.0 | 2026-11-13 | ADR-020: Phase 9 security hardening (runbook IAM narrowed, production CSP, catch-all route rejected after a live preflight regression, threat model, runbooks, test report, cost baseline ≈ US$0.035 for Nov 1–13). Owner review pending. |
 | 1.11.1 | 2026-11-13 | Phase 9 gate approved by the owner; §16 negative-test item ticked (verified live). Phase 10 started. |
 | 1.12.0 | 2026-11-13 | ADR-021: public release on GitHub Pages (bundle gate, repository variables for public config, site checks), docs and UI wording aligned with the build, cost log, interview guide, Demo video. Live workflow shown end to end on the public site. Owner review pending. |
+| 1.12.1 | 2026-11-13 | Phase 10 gate approved by the owner; v1.0.0 tagged and released. All ten phases complete. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 1–9 COMPLETE; Phase 10 gate tested, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; ALL TEN PHASES COMPLETE; v1.0.0 released; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

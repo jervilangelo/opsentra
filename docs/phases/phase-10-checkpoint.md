@@ -1,7 +1,7 @@
 # Phase 10 checkpoint: public release, docs and portfolio case study
 
 - **Branch:** `feat/release` (merged into `main` to publish)
-- **Status:** **Gate tests done on 2026-11-13. Waiting for the owner's gate review**, then the `v1.0.0` tag.
+- **Status:** **Complete.** Gate approved by the owner on 2026-11-13; released as `v1.0.0`.
 - **Design:** [`ADR-021`](../adr/ADR-021-public-release.md) (blueprint v1.12.0)
 - **Site:** <https://jervilangelo.github.io/opsentra/>
 
@@ -16,7 +16,7 @@
 | Public screenshots and demo video, without IDs or secrets | `docs/screenshots/demo/` (current build), `docs/screenshots/live/` (gate runs), [`media/opsentra-demo-walkthrough.webm`](../media/opsentra-demo-walkthrough.webm) |
 | Interview story | [`interview-demo/README.md`](../interview-demo/README.md): story, 8-minute walkthrough, fallback, live procedure, checklist |
 | Phase log and ADRs | `docs/phases/`, `docs/adr/` (ADR-005 to ADR-021), [`CHANGELOG.md`](../../CHANGELOG.md) |
-| Versioned release | `v1.0.0` (tag after the owner's approval) |
+| Versioned release | `v1.0.0` (git tag) |
 | Demo-only versus working | README "What works" matrix; the Architecture page's "What runs where" |
 
 **Stale UI wording fixed:**
