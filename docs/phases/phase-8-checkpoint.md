@@ -1,7 +1,7 @@
 # Phase 8 checkpoint: Analytics, reporting and observability
 
 - **Branch:** `feat/analytics`
-- **Status:** **Built, deployed and gate-tested live on 2026-11-13. Waiting for the owner's gate review.**
+- **Status:** **Complete.** Built, deployed, gate-tested live and approved by the owner on 2026-11-13.
 - **Design:** `docs/adr/ADR-019-analytics-and-observability.md` (blueprint v1.10.0)
 
 ## What was built

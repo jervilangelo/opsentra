@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.10.0 (Phases 1–7 complete; Phase 8 built, live gate run, owner review pending)  
+> **Version:** 1.10.1 (Phases 1–8 complete)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation) and 7 (Live Simulation Lab) passed their live gates and were approved by the owner on 2026-11-13. Phase 8 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
+> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation), 7 (Live Simulation Lab) and 8 (analytics and observability) passed their gates and were approved by the owner on 2026-11-13. Phase 9 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -564,7 +564,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** numbers reconciled with source events; synthetic and live datasets are never mixed in the same reporting view; missing signals shown as unknown rather than zero failure.
 
-**Status (2026-11-13):** built, deployed and gate-tested live (ADR-019); owner review pending: see `docs/phases/phase-8-checkpoint.md`. Printable HTML report and tracing not built (optional).
+**Status (2026-11-13):** complete; built, deployed, gate-tested live and approved by the owner (ADR-019): see `docs/phases/phase-8-checkpoint.md`. Printable HTML report and tracing not built (optional).
 
 ### Phase 9 — Security hardening, testing, optimization
 
@@ -913,7 +913,7 @@ These links support design decisions and should be rechecked for new AWS service
 ### Validation and release
 - [ ] Unit/contract/integration/Playwright E2E tests
 - [ ] Auth, IDOR, command injection, replay and SSRF negative tests
-- [ ] Export evidence and measured metrics
+- [x] Export evidence and measured metrics (Phase 8: reconciled Live analytics, sanitized JSON/CSV reports)
 - [ ] Document actual costs, cleanup and IaC reproduction
 - [ ] Publish public Demo Mode with no exposed privileged endpoints
 - [ ] Record real AWS failure-to-recovery demonstration
@@ -940,5 +940,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.9.0 | 2026-11-13 | ADR-018: Live Simulation Lab (Scenario A live; lab-controller Lambda; hash-pinned injection; preflight, confirmation, lock, cooldown, run limit; watchdog; reset never resolves; teardown verifier); `lab-runs` table; `LabScenario`/`LabRun` DTO additions; three lab routes implemented. Phase 6 and 7 live gates pending. |
 | 1.9.1 | 2026-11-13 | Phases 6 and 7 gates passed live and approved by the owner; §16 checklist updated with verified items only. Live gate fixes: recursive Decimal conversion in API responses; Live client retries throttled/unreachable requests with the same Idempotency-Key. |
 | 1.10.0 | 2026-11-13 | ADR-019: Live analytics (`GET /v1/analytics`, same definitions as Demo, percentiles, recovery outcomes, probe coverage, data-quality notes), sanitized JSON/CSV exports, structured log IDs, CloudWatch operations dashboard and investigation links; API may read metric statistics. Phase 8 live gate run; owner review pending. |
+| 1.10.1 | 2026-11-13 | Phase 8 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 6–7 COMPLETE; Phase 8 built, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 1–8 COMPLETE; Phase 9 next; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

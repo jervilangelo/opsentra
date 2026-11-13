@@ -11,14 +11,14 @@
 A UI-first cloud operations and incident response platform for AWS infrastructure.
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-FBBF24?style=flat-square)
-![Phase 8 of 10](https://img.shields.io/badge/phase-8%20of%2010-38BDF8?style=flat-square)
+![Phase 9 of 10](https://img.shields.io/badge/phase-9%20of%2010-38BDF8?style=flat-square)
 ![AWS](https://img.shields.io/badge/cloud-AWS-0B1220?style=flat-square)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-0B1220?style=flat-square)
 
 </div>
 
 > [!WARNING]
-> **Opsentra is a work in progress.** Phases 1–7 are complete; **Phase 8 (analytics, reporting and observability)** is next. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4), and **live incidents** (Phase 5): alarm events become deduplicated incidents with one email alert, operators acknowledge and investigate from the dashboard, every change is in an append-only audit trail, and an incident resolves only after an independent health check passes. **Approved remediation** (Phase 6): an operator requests an allowlisted, hash-pinned SSM runbook, an administrator approves it, it runs exactly once, and the incident is RESOLVED only after three healthy probes (SSM "Success" alone escalates if the service is still down). **Live Simulation Lab** (Phase 7): an administrator stops Nginx on the disposable lab from the browser, with preflight checks, a one-run lock, a cooldown, a time limit and a watchdog; only the Nginx scenario is live, the Lambda and security-group scenarios are Demo-only. Analytics, reports and observability in Live are **not built yet**; Live pages for them say so. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
+> **Opsentra is a work in progress.** Phases 1–8 are complete; **Phase 9 (security hardening, testing and optimization)** is next. Complete so far: the dashboard and a fully interactive **Demo Mode** with Easy and Advanced views (Phases 1–2), the AWS control plane with Cognito sign-in and a JWT-protected API (Phase 3), and **live monitoring** of a disposable EC2/Nginx lab with a real health probe, CloudWatch alarm and EventBridge events shown in Live AWS Mode (Phase 4), and **live incidents** (Phase 5): alarm events become deduplicated incidents with one email alert, operators acknowledge and investigate from the dashboard, every change is in an append-only audit trail, and an incident resolves only after an independent health check passes. **Approved remediation** (Phase 6): an operator requests an allowlisted, hash-pinned SSM runbook, an administrator approves it, it runs exactly once, and the incident is RESOLVED only after three healthy probes (SSM "Success" alone escalates if the service is still down). **Live Simulation Lab** (Phase 7): an administrator stops Nginx on the disposable lab from the browser, with preflight checks, a one-run lock, a cooldown, a time limit and a watchdog; only the Nginx scenario is live, the Lambda and security-group scenarios are Demo-only. **Analytics and reporting** (Phase 8): Live MTTA/MTTR with medians and denominators, runbook and recovery outcomes, availability from real probes (shown as unknown when there are none), sanitized JSON/CSV reports, structured logs and a CloudWatch operations dashboard; every Live number was reconciled with its source data. A printable HTML report and tracing are not built. Beyond what is listed as complete, everything below describes the planned design from the [master blueprint](OPSENTRA_MASTER_BLUEPRINT.md), not working features.
 
 ---
 
@@ -133,8 +133,8 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 | 5 | Incident detection, management and audit | ✅ Complete |
 | 6 | Controlled automated remediation | ✅ Complete |
 | 7 | Live Simulation Lab and guardrails | ✅ Complete |
-| 8 | Analytics, reporting and observability | 🟡 **Next** |
-| 9 | Security hardening, testing and optimization | ⚪ Planned |
+| 8 | Analytics, reporting and observability | ✅ Complete |
+| 9 | Security hardening, testing and optimization | 🟡 **Next** |
 | 10 | Public release, docs and portfolio case study | ⚪ Planned |
 
 **Done so far**
@@ -149,7 +149,8 @@ Work progresses through **ten milestone-based phases**. Each one has to pass its
 - [x] Live incidents (Phase 5): validated, deduplicated ingest, email alert, operator actions, audit trail, verified self-heal
 - [x] Approved remediation (Phase 6): request, admin approval, one hash-pinned SSM run, verified recovery or escalation
 - [x] Live Simulation Lab (Phase 7): admin-started Nginx outage with preflight, lock, cooldown, watchdog and teardown check
-- [ ] Analytics, reporting and observability (Phase 8)
+- [x] Analytics, reporting and observability (Phase 8): reconciled Live metrics, sanitized exports, structured logs, dashboard
+- [ ] Security hardening, testing and optimization (Phase 9)
 
 ---
 
@@ -200,7 +201,7 @@ See [`apps/dashboard/README.md`](apps/dashboard/README.md) for all scripts.
 - [Architecture overview](docs/architecture/overview.md): what is built now versus planned
 - [Architecture decision records](docs/adr/)
 - [Phase 1 checkpoint](docs/phases/phase-1-checkpoint.md), [design review](docs/phases/phase-1-design-review.md) and [Phase 2 checkpoint](docs/phases/phase-2-checkpoint.md)
-- [Phase 6 checkpoint](docs/phases/phase-6-checkpoint.md) and [Phase 7 checkpoint](docs/phases/phase-7-checkpoint.md): live gate evidence
+- [Phase 6 checkpoint](docs/phases/phase-6-checkpoint.md) and [Phase 7 checkpoint](docs/phases/phase-7-checkpoint.md) and [Phase 8 checkpoint](docs/phases/phase-8-checkpoint.md): live gate evidence
 - [Brand guidelines](brand/BRAND_GUIDELINES.md): logo usage, colour, typography and dashboard branding
 
 ## Author
