@@ -202,3 +202,46 @@ def test_no_controller_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_controller_rejects_malformed_invocations(api: dict[str, Any], payload: Any) -> None:
     out = lab_controller.handle(payload, h.incident_store(), api["ssm"], FakeEC2())
     assert out["status"] == 400 and api["ssm"].sent == []
+
+
+def test_audit_with_nested_numbers_serializes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Live gate 2026-11-13: VERIFICATION_FAILED stores consecutiveHealthyChecks
+    (a number) inside detail; the real store returned Decimal and /v1/audit 500ed."""
+    from opsentra_api import store
+
+    for k, v in {
+        "AWS_ACCESS_KEY_ID": "t",
+        "AWS_SECRET_ACCESS_KEY": "t",
+        "AWS_DEFAULT_REGION": "ap-southeast-1",
+        "AUDIT_TABLE": "aud",
+    }.items():
+        monkeypatch.setenv(k, v)
+    with mock_aws():
+        ddb = boto3.client("dynamodb", region_name="ap-southeast-1")
+        ddb.create_table(
+            TableName="aud",
+            BillingMode="PAY_PER_REQUEST",
+            AttributeDefinitions=[
+                {"AttributeName": "PK", "AttributeType": "S"},
+                {"AttributeName": "SK", "AttributeType": "S"},
+            ],
+            KeySchema=[{"AttributeName": "PK", "KeyType": "HASH"}, {"AttributeName": "SK", "KeyType": "RANGE"}],
+        )
+        ddb.put_item(
+            TableName="aud",
+            Item=core.ser_item(
+                {
+                    "PK": "INCIDENT#INC-1",
+                    "SK": "2026-11-13T01:42:07Z#1",
+                    "eventType": "VERIFICATION_FAILED",
+                    "detail": {"consecutiveHealthyChecks": 0, "total": 12, "list": [1, 2]},
+                }
+            ),
+        )
+        h.set_store(store.DynamoStore())
+        try:
+            status, body = call(event("GET", "/v1/audit", ADMIN))
+        finally:
+            h.set_store(None)
+    assert status == 200
+    assert body["data"][0]["detail"] == {"consecutiveHealthyChecks": 0, "total": 12, "list": [1, 2]}

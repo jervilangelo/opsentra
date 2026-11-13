@@ -1,16 +1,16 @@
 # Phase 6 checkpoint: Controlled automated remediation
 
 - **Branch:** `feat/remediation`
-- **Status:** **In progress.** Control plane deployed; first live gate run on 2026-11-12 found two bugs (see below and `HANDOFF.md`), fixed in code on 2026-11-13 (blueprint v1.8.1, commit `884bacb`) but not yet deployed. Lab destroyed, teardown verified.
+- **Status:** **In progress.** Control plane deployed; first live gate run on 2026-11-12 found two bugs (see below and `HANDOFF.md`), fixed on 2026-11-13 (blueprint v1.8.1, commit `884bacb`). **Live gate re-run passed on 2026-11-13 (run 2 below); awaiting the owner's gate review.** Lab destroyed, teardown verified.
 
 ## Gate (blueprint §7, Phase 6)
 
 | Gate item | Local evidence | Live |
 |---|---|---|
-| Genuine Nginx failure recovered without CLI | `test_full_flow_resolves_only_after_three_healthy_probes`, `test_reconciler_run_verifies_and_resolves` | Pending |
-| Unauthorized and arbitrary operations denied | `test_roles_are_enforced`, `test_arbitrary_runbooks_are_refused_without_writes` (7 cases), `test_a_changed_document_hash_is_not_allowlisted`, `test_untagged_or_stopped_target_is_never_sent`, `test_coordinator_rejects_untrusted_triggers`, API `test_resource_or_role_in_the_body_is_ignored`, denials audited | Pending |
-| Failed recovery with SSM success never marked recovered | `test_success_without_healthy_probes_escalates_after_the_window`, streak must start after the command finished | Pending |
-| Replay does not repeat the action | `test_replayed_decision_never_dispatches_twice`, `test_approval_never_picked_up_is_dispatched_once_by_the_reconciler`, API `test_request_then_approve_dispatches_once` | Pending |
+| Genuine Nginx failure recovered without CLI | `test_full_flow_resolves_only_after_three_healthy_probes`, `test_reconciler_run_verifies_and_resolves` | **Pass (run 2).** `INC-20261113-1D4F09`: operator request and admin approval in the UI, one restart, SSM Success 01:55:52, streak from 01:56:07, **RESOLVED 01:59:15** after 4 healthy probes |
+| Unauthorized and arbitrary operations denied | `test_roles_are_enforced`, `test_arbitrary_runbooks_are_refused_without_writes` (7 cases), `test_a_changed_document_hash_is_not_allowlisted`, `test_untagged_or_stopped_target_is_never_sent`, `test_coordinator_rejects_untrusted_triggers`, API `test_resource_or_role_in_the_body_is_ignored`, denials audited | **Pass (run 1)** |
+| Failed recovery with SSM success never marked recovered | `test_success_without_healthy_probes_escalates_after_the_window`, streak must start after the command finished | **Pass (run 2).** `INC-20261113-4DEF6A`: admin self-approved (`selfApproved: true`), RestartNginx SSM Success, Nginx stopped again 02:10:02; request SUCCEEDED but incident **ESCALATED** at 02:21:15 (`VERIFICATION_FAILED`, "Recovery not verified"), never RESOLVED |
+| Replay does not repeat the action | `test_replayed_decision_never_dispatches_twice`, `test_approval_never_picked_up_is_dispatched_once_by_the_reconciler`, API `test_request_then_approve_dispatches_once` | **Pass (run 1)** |
 
 ## Local checks (2026-11-12)
 
@@ -55,3 +55,15 @@
 2. Verification requires the healthy streak to start after `completedAt`; live, it started 1 s before, so a real recovery could never verify.
 
 Both are fixed first in the next session, then the run is repeated.
+
+## Live run 2 (2026-11-13, UTC)
+
+Run together with the Phase 7 gate; full timeline in `phase-7-checkpoint.md`.
+
+| Time | Step |
+|---|---|
+| 01:41 | Fixes deployed (control plane) |
+| 01:42 | Reconciler escalated the stuck `INC-20261112-1838F3` (`VERIFICATION_FAILED` → ESCALATED, `activeRequestId` cleared): **bug 1 fixed live** |
+| 01:55–01:59 | Happy path `INC-20261113-1D4F09` → **RESOLVED** with the streak starting after SSM completion: **bug 2 fixed live** |
+| 02:09–02:21 | Self-approval + false success `INC-20261113-4DEF6A` → **ESCALATED**, never RESOLVED |
+| 02:29 | Lab destroyed; teardown verified |

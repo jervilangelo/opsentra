@@ -25,6 +25,19 @@ class Store(Protocol):
     def query_pk(self, table: str, pk_name: str, pk_value: str) -> list[dict[str, Any]]: ...
 
 
+def plain(value: Any) -> Any:
+    """DynamoDB numbers arrive as Decimal at any depth (e.g. an audit item's
+    detail map), and json.dumps rejects Decimal. Whole numbers become int,
+    others float; maps, lists and sets are converted recursively."""
+    if type(value).__name__ == "Decimal":
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, Mapping):
+        return {k: plain(v) for k, v in value.items()}
+    if isinstance(value, list | set | tuple):
+        return [plain(v) for v in value]
+    return value
+
+
 class DynamoStore:
     """boto3-backed store (boto3 ships in the Lambda runtime)."""
 
@@ -36,9 +49,7 @@ class DynamoStore:
         self._de = TypeDeserializer()
 
     def _plain(self, item: Mapping[str, Any]) -> dict[str, Any]:
-        out = {k: self._de.deserialize(v) for k, v in item.items()}
-        # DynamoDB numbers arrive as Decimal; the API only stores small integers.
-        return {k: int(v) if type(v).__name__ == "Decimal" else v for k, v in out.items()}
+        return {k: plain(self._de.deserialize(v)) for k, v in item.items()}
 
     def scan(self, table: str) -> Iterator[dict[str, Any]]:
         kwargs: dict[str, Any] = {"TableName": table}

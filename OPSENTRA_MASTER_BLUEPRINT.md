@@ -1,9 +1,9 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.9.0 (Phases 1–5 complete; Phase 6 live gate pending; Phase 7 built, live gate pending)  
+> **Version:** 1.9.0 (Phases 1–5 complete; Phases 6–7 live gates passed 2026-11-13, owner review pending)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
-> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phase 6 (approved remediation) and Phase 7 (Live Simulation Lab) are built and tested locally; their live gate runs are pending. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
+> **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phase 6 (approved remediation) and Phase 7 (Live Simulation Lab) passed their live gate tests on 2026-11-13 and await the owner's review. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
 > **Tagline:** *Monitor. Detect. Respond. Recover.*  
 > **Primary goal:** An interview-ready, **UI-first**, demonstrably real AWS Cloud Operations and Incident Response platform built using Terraform, serverless AWS services, and controlled failure simulations.  
 > **Primary audience:** Junior Cloud Engineer / Cloud Infrastructure Engineer recruiters, and IT/cloud operations teams.  
@@ -534,7 +534,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** genuine Nginx failure recovered without CLI; unauthorized and arbitrary resource operations denied; failed SSM success cannot falsely mark recovered; replay does not repeat action.
 
-**Status (2026-11-13):** code and tests written (ADR-017). Live run 1 found two bugs, fixed in v1.8.1. The live gate re-run is pending: see `docs/phases/phase-6-checkpoint.md`.
+**Status (2026-11-13):** code and tests written (ADR-017). Live run 1 found two bugs, fixed in v1.8.1. The live gate re-run passed on 2026-11-13; owner review pending: see `docs/phases/phase-6-checkpoint.md`.
 
 ### Phase 7 — Live Simulation Lab and guardrails
 
@@ -546,7 +546,7 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** every implemented scenario can be started, inspected, recovered/reset without terminal; expired/disconnected scenarios are safely cleaned up; no non-lab resources affected.
 
-**Status (2026-11-13):** built and tested locally (ADR-018); Scenario A is live, B and C stay Demo-only (planned for Live). Deployment and the live gate test are pending: see `docs/phases/phase-7-checkpoint.md`.
+**Status (2026-11-13):** built and tested locally (ADR-018); Scenario A is live, B and C stay Demo-only (planned for Live). Deployed; the live gate test passed on 2026-11-13 (owner review pending): see `docs/phases/phase-7-checkpoint.md`.
 
 ### Phase 8 — Analytics, reporting, and observability
 
@@ -931,4 +931,4 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.8.1 | 2026-11-13 | Fixes from Phase 6 live run 1: escalation writes used invalid `SET …, REMOVE` syntax (moto accepted it, DynamoDB did not); verification now counts probes from `max(streak start, command completed)`; the reconciler isolates errors per incident and request. No scope change. |
 | 1.9.0 | 2026-11-13 | ADR-018: Live Simulation Lab (Scenario A live; lab-controller Lambda; hash-pinned injection; preflight, confirmation, lock, cooldown, run limit; watchdog; reset never resolves; teardown verifier); `lab-runs` table; `LabScenario`/`LabRun` DTO additions; three lab routes implemented. Phase 6 and 7 live gates pending. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phases 6–7 built, live gates pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; Phases 6–7 live gates passed, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

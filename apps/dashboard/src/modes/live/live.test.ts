@@ -250,3 +250,38 @@ describe('live data source fails closed', () => {
     ]);
   });
 });
+
+describe('throttling and transient network failures (live gate 2026-11-13)', () => {
+  it('retries a 429 with the same idempotency key, then returns the result', async () => {
+    _setTokensForTest(fresh());
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(() => Promise.resolve(new Response('{}', { status: 429 })))
+      .mockImplementationOnce(() => Promise.reject(new TypeError('Failed to fetch')))
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ data: { id: 'nginx-outage' }, meta: { dataset: 'live' } }),
+            {
+              status: 200,
+            },
+          ),
+        ),
+      );
+    await liveDataSource.startLab('nginx-outage', { idempotencyKey: 'same-key' });
+    expect(spy).toHaveBeenCalledTimes(3);
+    const keys = spy.mock.calls.map(
+      ([, init]) => ((init as RequestInit).headers as Record<string, string>)['idempotency-key'],
+    );
+    expect(new Set(keys)).toEqual(new Set(['same-key']));
+  }, 10_000);
+
+  it('gives up after two retries and fails closed', async () => {
+    _setTokensForTest(fresh());
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.reject(new TypeError('Failed to fetch')));
+    await expect(liveDataSource.listIncidents()).rejects.toMatchObject({ reason: 'network' });
+    expect(spy).toHaveBeenCalledTimes(3);
+  }, 10_000);
+});

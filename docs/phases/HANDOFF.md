@@ -6,36 +6,23 @@
 
 | | |
 |---|---|
-| **Phase** | **6 and 7 both built and tested locally; neither live gate has run.** The owner asked to continue into Phase 7 (2026-11-13) and approved every step up to Phase 7's end, AWS writes included. Phase 6 is **not** marked complete: its live gate is still pending. |
-| **Phases complete** | 1–5 (gates passed and approved by the owner on 2026-11-12). |
-| **Branch** | `feat/remediation`. Commit `884bacb` (Phase 6 fixes) and the Phase 7 commit are **local and not pushed**. `main` has Phase 6 up to `fa87a56`. |
-| **AWS now** | Unchanged since 2026-11-12. **Control plane deployed with the old Phase 6 code** (bug 1 still live: the reconciler raises on `INC-20261112-1838F3` every 2 minutes). **Lab destroyed.** |
-| **Blocker** | **The AWS CLI session expired.** The owner must run `aws login`; no AWS command, including `terraform plan`, works until then. |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (**v1.9.0**) and `CLAUDE.md`. Designs: `docs/adr/ADR-017-approved-remediation.md`, `docs/adr/ADR-018-live-simulation-lab.md`. Evidence: `docs/phases/phase-6-checkpoint.md`, `docs/phases/phase-7-checkpoint.md`. |
+| **Phase** | **6 and 7: both live gates passed on 2026-11-13. Waiting for the owner's gate review.** Neither is marked complete until the owner approves (CLAUDE.md). |
+| **Phases complete** | 1–5 (approved 2026-11-12). |
+| **Branch** | `feat/remediation`, pushed. `main` still has Phase 6 up to `fa87a56`; merge after the review. |
+| **AWS now** | **Control plane deployed** with Phases 6–7 (`lab-runs` table, `lab-controller` Lambda, lab routes). **Lab destroyed**, teardown verified 02:29 UTC by `scripts/gate/verify_teardown.py`. One old incident `INC-20261112-1838F3` stays ESCALATED (its lab is gone; expected). |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.9.0) and `CLAUDE.md`. Designs: ADR-017, ADR-018. Evidence: `docs/phases/phase-6-checkpoint.md`, `docs/phases/phase-7-checkpoint.md`. |
 
-## Next: one live session finishes both gates
+## Next
 
-Follow `docs/phases/phase-7-checkpoint.md` → "Live gate plan". In short:
-1. `aws login` (owner).
-2. Run the control-plane plan and check it shows only the expected changes:
-   - the `lab-runs` table;
-   - the `lab-controller` Lambda, role, policy and log group;
-   - 3 API routes;
-   - Lambda code and environment updates;
-   - IAM updates.
+1. Owner reviews the Phase 6 and Phase 7 gates (§7.1 checklist).
+2. On approval:
+   - update the CLAUDE.md "Current phase" line;
+   - update the README roadmap and badge;
+   - update the blueprint §16 checklist and version (1.9.1);
+   - merge `feat/remediation` into `main` and push.
+3. Then Phase 8 (Analytics, reporting, observability).
 
-   Then apply.
-3. Confirm `INC-20261112-1838F3` escalates.
-4. Deploy the lab.
-5. Phase 6: the happy path to RESOLVED, then self-approval plus false success, which must end ESCALATED.
-6. Phase 7: `scripts/gate/live-lab.cjs`, covering:
-   - start → incident → approved recovery → COMPLETED;
-   - a start during cooldown is refused;
-   - start → reset;
-   - attack checks;
-   - destroy with a run active, which the watchdog must end.
-7. Destroy the lab and run `scripts/gate/verify_teardown.py`.
-8. Record the evidence, commit, push, and ask for the Phase 6 and Phase 7 gate reviews.
+Not tested live: the 45-minute auto-reset (unit-tested only). Still open: the SNS email confirmation (owner) and the cost check once billing data arrives.
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 

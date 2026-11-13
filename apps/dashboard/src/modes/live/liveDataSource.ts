@@ -31,6 +31,9 @@ const later = (phase: string) => (): Promise<never> =>
     new LiveUnavailableError('not-implemented', `This part of Live AWS Mode arrives in ${phase}.`),
   );
 
+/** Backoff before each retry of a throttled or unreachable request. */
+export const RETRY_DELAYS_MS: readonly number[] = [700, 1500];
+
 interface SendOptions {
   method?: 'GET' | 'POST';
   body?: unknown;
@@ -47,18 +50,32 @@ async function get<T>(path: string, opts: SendOptions = {}): Promise<ApiSuccess<
   const token = await accessToken();
   if (!token) throw new LiveUnavailableError('unauthenticated', 'Sign in to use Live AWS Mode.');
 
-  let res: Response;
-  try {
-    const headers: Record<string, string> = { authorization: `Bearer ${token}` };
-    if (opts.body !== undefined) headers['content-type'] = 'application/json';
-    if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey;
-    res = await fetch(`${env.apiBaseUrl.replace(/\/$/, '')}${path}`, {
+  const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+  if (opts.body !== undefined) headers['content-type'] = 'application/json';
+  if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey;
+  const url = `${env.apiBaseUrl.replace(/\/$/, '')}${path}`;
+  const send = () =>
+    fetch(url, {
       method: opts.method ?? 'GET',
       headers,
       ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
     });
-  } catch {
-    throw new LiveUnavailableError('network', 'The Opsentra API could not be reached.');
+
+  // The stage throttle (burst 10) can reject a CORS preflight with 429, which
+  // the browser reports as a network failure. Retrying is safe: reads have no
+  // effect and every write carries the same Idempotency-Key, so the backend
+  // returns the stored result instead of acting twice (live gate, 2026-11-13).
+  let res: Response | undefined;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await send();
+      if (res.status !== 429 || attempt >= RETRY_DELAYS_MS.length) break;
+    } catch {
+      if (attempt >= RETRY_DELAYS_MS.length) {
+        throw new LiveUnavailableError('network', 'The Opsentra API could not be reached.');
+      }
+    }
+    await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
 
   if (res.status === 401) {

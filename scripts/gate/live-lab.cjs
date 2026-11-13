@@ -32,7 +32,7 @@ const t = () => new Date().toISOString().slice(11, 19);
     if ((await p.getByText('DEMO — SYNTHETIC DATA').count()) > 0) throw new Error('demo banner in Live');
     const nav = (label) => p.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: label }).click();
     await nav('Simulation Lab');
-    await p.getByText(/Preflight checks|Current run|The live lab is off/).first().waitFor({ timeout: 30000 });
+    await p.getByText(/^Scenario A:|The live lab is off/).first().waitFor({ timeout: 30000 });
 
     if (mode === 'start') {
       await shot(`${t().replace(/:/g, '')}-lab-preflight`);
