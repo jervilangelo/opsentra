@@ -8,6 +8,8 @@
 const { createRequire } = require('module');
 const req = createRequire(require('path').resolve(__dirname, '../../apps/dashboard/package.json'));
 const { chromium } = req('@playwright/test');
+// The dashboard under test: local dev by default, or the published site.
+const UI = (process.env.OPSENTRA_UI_URL || 'http://localhost:5173/').replace(/\/?$/, '/');
 const [out, incidentId, mode] = process.argv.slice(2);
 let page;
 const t = () => new Date().toISOString().slice(11, 19);
@@ -21,14 +23,14 @@ const t = () => new Date().toISOString().slice(11, 19);
   await ctx.addInitScript(() => localStorage.setItem('opsentra:preferences', JSON.stringify({ state: { view: 'advanced' }, version: 0 })));
   const p = await ctx.newPage();
   page = p;
-  await p.goto('http://localhost:5173/');
+  await p.goto(UI);
   await p.getByRole('button', { name: 'Live AWS' }).click();
   await p.getByRole('button', { name: 'Sign in' }).click();
   await p.waitForURL(/amazoncognito\.com/, { timeout: 20000 });
   await p.locator('input[name="username"]:visible').fill(user);
   await p.locator('input[name="password"]:visible').fill(pass);
   await p.locator('input[name="signInSubmitButton"]:visible, button[type="submit"]:visible').first().click();
-  await p.waitForURL(/localhost:5173\/(?!auth)/, { timeout: 30000 });
+  await p.waitForURL((u) => (u.href + '/').startsWith(UI) && !u.pathname.includes('/auth/'), { timeout: 30000 });
   const live = async () => {
     if ((await p.getByText('LIVE AWS — ap-southeast-1').count()) < 1) throw new Error('not in Live mode');
     if ((await p.getByText('DEMO — SYNTHETIC DATA').count()) > 0) throw new Error('demo banner in Live');

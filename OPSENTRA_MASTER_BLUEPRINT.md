@@ -1,6 +1,6 @@
 # Opsentra — Master Project Blueprint
 
-> **Version:** 1.11.1 (Phases 1–9 complete; Phase 10 in progress)  
+> **Version:** 1.12.0 (Phases 1–9 complete; Phase 10 gate tested, owner review pending)  
 > **Date:** 2026-11-13  
 > **Repository:** https://github.com/jervilangelo/opsentra  
 > **Project state:** Phases 1–5 complete (gates passed 2026-11-12). Phases 6 (approved remediation), 7 (Live Simulation Lab) and 8 (analytics and observability) passed their gates and were approved by the owner on 2026-11-13. Phase 9 is next. The control plane is deployed in `ap-southeast-1`; the disposable lab is created only for tests.  
@@ -48,6 +48,7 @@ This is the **source of truth** for Opsentra's scope, design decisions, phased i
 | ADR-014 | Phase 3 AWS foundation choices | Agreed (2026-11-12) | Python 3.12, SSE-S3/AWS-owned keys, plan-only OIDC role, logs-only Lambda role, budget excluding credits, mocked `terraform test`. See `docs/adr/ADR-014-phase3-aws-foundation.md`. |
 | ADR-015 | Phase 4 lab design and Live adapter | Agreed (2026-11-12) | Own VPC, HTTP-only probe target, self-terminating lab with required expiry, self-disabling probe, registry via Terraform, PKCE sign-in, `VITE_COGNITO_DOMAIN`. See `docs/adr/ADR-015-phase4-lab-and-live-adapter.md`. |
 | ADR-016 | Incident pipeline | Agreed (2026-11-12) | Validated ingest, `EVENT#` dedup, correlation transaction, verified self-heal, reconciler, idempotent versioned actions, append-only audit, SNS once per incident, DLQ. See `docs/adr/ADR-016-incident-pipeline.md`. |
+| ADR-021 | Public release on GitHub Pages | Agreed (2026-11-13) | Pages workflow with a bundle leak/CSP gate; public `VITE_*` values from repository variables; site check as a visitor and with `--expect-live`; docs and UI wording match the build; Demo video; `v1.0.0`; license is the owner's choice. See `docs/adr/ADR-021-public-release.md`. |
 | ADR-020 | Phase 9 security hardening | Agreed (2026-11-13) | Coordinator/reconciler IAM narrowed to RestartNginx; production CSP; no catch-all route (a JWT `$default` broke CORS preflight and was reverted); admin MFA open (F2); repeatable security scripts. See `docs/adr/ADR-020-security-hardening.md`. |
 | ADR-019 | Live analytics, reports and observability | Agreed (2026-11-13) | Shared §4.5 definitions (Live = Demo, halves rounded up, median n ≥ 3, p90 n ≥ 10); `GET /v1/analytics`; availability from probe SampleCount with coverage, unknown when absent; recovery outcomes from HEALTH_VERIFIED evidence; sanitized JSON/CSV exports; structured log IDs; CloudWatch dashboard; API may read metric statistics (only wildcard). See `docs/adr/ADR-019-analytics-and-observability.md`. |
 | ADR-018 | Live Simulation Lab and guardrails | Agreed (2026-11-13) | Scenario A live, B/C planned; lab-controller Lambda (API keeps no SSM/EC2 rights); hash-pinned injection; preflight, confirmation, one-run lock, 5-min cooldown, 45-min run limit; watchdog in the reconciler; reset never resolves; read-only teardown verifier. See `docs/adr/ADR-018-live-simulation-lab.md`. |
@@ -589,6 +590,8 @@ Each phase should produce (a) code/artifacts, (b) tests, (c) short demo, (d) doc
 
 **Gate:** visitor can use Demo Mode without login; authenticated admin can show live workflow when resources are on; documentation and screenshots match actual implementation; no leaked sensitive configuration.
 
+**Status (2026-11-13):** published at <https://jervilangelo.github.io/opsentra/>; the gate was tested live on the public site (ADR-021); owner review pending: see `docs/phases/phase-10-checkpoint.md`.
+
 ### 7.1 Cross-phase gate checklist template
 
 ```markdown
@@ -914,13 +917,13 @@ These links support design decisions and should be rechecked for new AWS service
 - [x] Safe Simulation Lab operations + cleanup watchdog (Phase 7: Scenario A live; the 45-minute auto-reset is unit-tested only)
 
 ### Validation and release
-- [ ] Unit/contract/integration/Playwright E2E tests
+- [ ] Unit/contract/integration/Playwright E2E tests (unit, integration and E2E done; **contract (OpenAPI/JSON Schema) tests not built**)
 - [x] Auth, IDOR, command injection, replay and SSRF negative tests (unit tests; live probes and attack runs, Phases 6–9)
 - [x] Export evidence and measured metrics (Phase 8: reconciled Live analytics, sanitized JSON/CSV reports)
-- [ ] Document actual costs, cleanup and IaC reproduction
-- [ ] Publish public Demo Mode with no exposed privileged endpoints
-- [ ] Record real AWS failure-to-recovery demonstration
-- [ ] Finish README, diagrams, runbooks, ADRs and portfolio case study
+- [x] Document actual costs, cleanup and IaC reproduction (`docs/costs/cost-log.md`, runbooks, `verify_teardown.py`, README "Run it")
+- [x] Publish public Demo Mode with no exposed privileged endpoints (GitHub Pages; bundle gate; Phase 9 probe)
+- [x] Record real AWS failure-to-recovery demonstration (Phase 6, 7 and 10 timelines and screenshots; the Demo walkthrough video is synthetic and labelled)
+- [x] Finish README, diagrams, runbooks, ADRs and portfolio case study (README, architecture overview, runbooks, ADR-005 to ADR-021, interview guide, CHANGELOG)
 
 ---
 
@@ -946,5 +949,6 @@ These links support design decisions and should be rechecked for new AWS service
 | 1.10.1 | 2026-11-13 | Phase 8 gate passed live and approved by the owner; §16 checklist updated with verified items only. |
 | 1.11.0 | 2026-11-13 | ADR-020: Phase 9 security hardening (runbook IAM narrowed, production CSP, catch-all route rejected after a live preflight regression, threat model, runbooks, test report, cost baseline ≈ US$0.035 for Nov 1–13). Owner review pending. |
 | 1.11.1 | 2026-11-13 | Phase 9 gate approved by the owner; §16 negative-test item ticked (verified live). Phase 10 started. |
+| 1.12.0 | 2026-11-13 | ADR-021: public release on GitHub Pages (bundle gate, repository variables for public config, site checks), docs and UI wording aligned with the build, cost log, interview guide, Demo video. Live workflow shown end to end on the public site. Owner review pending. |
 
-**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 1–9 COMPLETE; Phase 10 in progress; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.
+**Status:** APPROVED CONCEPT / PHASES 1–5 COMPLETE; PHASES 1–9 COMPLETE; Phase 10 gate tested, owner review pending; control plane deployed, lab disposable. Review and update this document whenever requirements materially change; do not represent it as an implemented product until phase gates have actually passed.

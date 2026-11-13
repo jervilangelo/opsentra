@@ -6,18 +6,33 @@
 
 | | |
 |---|---|
-| **Phase** | **10: Public release, docs and portfolio case study. In progress** (owner approved everything for Phase 10 on 2026-11-13). |
-| **Phases complete** | 1–9. |
-| **Branch** | `main` has Phases 1–9. Phase 10 is on `feat/release`. |
-| **AWS now** | **Control plane deployed** (Phases 6–9). **Lab destroyed.** |
-| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` and `CLAUDE.md`. Latest ADR: ADR-020. |
+| **Phase** | **10: Public release. Gate tested on 2026-11-13. Waiting for the owner's review**, then the `v1.0.0` tag. |
+| **Site** | <https://jervilangelo.github.io/opsentra/>. Pages is deployed by `.github/workflows/pages.yml`. The public `VITE_*` values are GitHub repository variables. |
+| **Branch** | `main` (published) and `feat/release`. |
+| **AWS now** | **Control plane deployed.** **Lab destroyed**, teardown verified after the public-site gate run. |
+| **Source of truth** | `OPSENTRA_MASTER_BLUEPRINT.md` (v1.12.0) and `CLAUDE.md`. Latest ADR: ADR-021. Evidence: `docs/phases/phase-10-checkpoint.md`. |
 
-## Still open
+## Next
 
-- **F2:** Cognito admin MFA (owner decision).
+1. The owner reviews the Phase 10 gate.
+2. On approval:
+   - tag `v1.0.0` and push the tag;
+   - update CLAUDE.md "Current phase" to "all phases complete";
+   - update the README badge and the blueprint version;
+   - merge.
+3. After v1.0.0 (blueprint §14), the owner chooses what comes next.
+
+Still open:
+- **F2:** Cognito admin MFA.
+- Choose a license.
 - Activate the `opsentra:project` cost-allocation tag.
-- The SNS email confirmation.
+- Confirm the SNS email subscription.
 - The control-plane destroy test (deferred).
+
+Release tools:
+- `scripts/release/check_bundle.py` and `check_site.cjs <url> [--expect-live]`;
+- `record_demo.cjs`;
+- the gate scripts take `OPSENTRA_UI_URL` to run against the public site.
 
 ## Phase 6 bugs from live run 1 (fixed in code, not deployed)
 
